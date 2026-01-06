@@ -21,7 +21,18 @@ export const TRADING_CONSTANTS = {
   MAX_STOP_LOSSES_24H: 3,
   BANKROLL_DROP_THRESHOLD: 0.70, // 30% drop
   
-  // Excluded categories
-  EXCLUDE_CATEGORIES: ['Crypto'],
+  // Excluded categories and keywords for filtering
+  EXCLUDE_CATEGORIES: ['Crypto', 'Sports', 'Entertainment'],
+  EXCLUDE_KEYWORDS: [
+    // Sports betting
+    'game', 'match', 'team', 'player', 'points', 'score', 'yards', 'rebounds', 
+    'assists', 'goals', 'touchdown', 'win', 'loss', 'nfl', 'nba', 'mlb', 'nhl',
+    'soccer', 'football', 'basketball', 'baseball', 'hockey', 'tennis', 'golf',
+    'olympics', 'championship', 'tournament', 'playoff', 'season',
+    // High variability
+    'celebrity', 'viral', 'trend', 'social media', 'follower', 'views', 'likes',
+    // Black swan potential
+    'surprise', 'unexpected', 'shock', 'crash', 'collapse', 'disaster',
+  ],
 };
 

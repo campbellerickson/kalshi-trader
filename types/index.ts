@@ -35,7 +35,8 @@ export interface ScanCriteria {
   maxOdds: number;
   maxDaysToResolution: number;
   minLiquidity: number;
-  excludeCategories: string[];
+  excludeCategories?: string[];
+  excludeKeywords?: string[];
 }
 
 export interface AnalysisRequest {
@@ -112,6 +113,7 @@ export interface Market {
   liquidity: number;
   volume_24h: number;
   resolved: boolean;
+  category?: string;
   outcome?: 'YES' | 'NO';
   final_odds?: number;
   resolved_at?: Date;

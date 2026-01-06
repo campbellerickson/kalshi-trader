@@ -9,6 +9,7 @@ export async function scanContracts(
     maxDaysToResolution: TRADING_CONSTANTS.MAX_DAYS_TO_RESOLUTION,
     minLiquidity: TRADING_CONSTANTS.MIN_LIQUIDITY,
     excludeCategories: TRADING_CONSTANTS.EXCLUDE_CATEGORIES,
+    excludeKeywords: TRADING_CONSTANTS.EXCLUDE_KEYWORDS,
   }
 ): Promise<Contract[]> {
   console.log('🔍 Scanning Kalshi for contracts...');
@@ -44,11 +45,18 @@ export async function scanContracts(
       continue;
     }
 
-    // Exclude categories
-    // Note: This assumes market has a category field - adjust based on actual API
-    // if (market.category && criteria.excludeCategories.includes(market.category)) {
-    //   continue;
-    // }
+    // Exclude categories (if available in market data)
+    if (market.category && criteria.excludeCategories?.includes(market.category)) {
+      continue;
+    }
+
+    // Exclude contracts with problematic keywords in the question
+    const questionLower = market.question.toLowerCase();
+    const excludeKeywords = (criteria.excludeKeywords || []).map(k => k.toLowerCase());
+    const hasExcludedKeyword = excludeKeywords.some(keyword => questionLower.includes(keyword));
+    if (hasExcludedKeyword) {
+      continue;
+    }
 
     // Convert to Contract format
     const contract: Contract = {
