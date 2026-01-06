@@ -16,6 +16,12 @@
       "path": "/api/cron/check-resolutions",
       "schedule": "0 */6 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "pages/api/cron/*.ts": {
+      "memory": 1024,
+      "maxDuration": 300
+    }
+  }
 }
 
