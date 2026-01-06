@@ -6,7 +6,6 @@ import { checkAndResolveOpenTrades } from '../../lib/kalshi/resolver';
 import { monitorStopLosses } from '../../lib/trading/stop-loss';
 import { getRecentTrades, getCurrentBankroll } from '../../lib/database/queries';
 import { sendDailySummary, sendErrorAlert } from '../../lib/utils/notifications';
-import { getAccountBalance } from '../../lib/kalshi/client';
 import { TRADING_CONSTANTS } from '../../config/constants';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -44,50 +43,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     console.log(`🤖 AI selected ${analysis.selectedContracts.length} contracts`);
     console.log(`💰 Total allocation: $${analysis.totalAllocated}`);
-    
-    // 3.5. Check account balance before executing trades
-    console.log('💵 Checking Kalshi account balance...');
-    let accountBalance: number;
-    try {
-      accountBalance = await getAccountBalance();
-      console.log(`   Current balance: $${accountBalance.toFixed(2)}`);
-    } catch (error: any) {
-      console.error('   ⚠️ Failed to fetch balance, using database bankroll as fallback');
-      accountBalance = await getCurrentBankroll();
-    }
-    
-    // Check if we have enough funds
-    if (accountBalance < analysis.totalAllocated) {
-      const shortfall = analysis.totalAllocated - accountBalance;
-      console.log(`⚠️ Insufficient funds in Kalshi account`);
-      console.log(`   Required: $${analysis.totalAllocated.toFixed(2)}`);
-      console.log(`   Available: $${accountBalance.toFixed(2)}`);
-      console.log(`   Shortfall: $${shortfall.toFixed(2)}`);
-      console.log(`   Skipping trades for today`);
-      
-      // Log to error_logs
-      const { logError } = await import('../../lib/utils/logger');
-      await logError(
-        'warning',
-        `Insufficient funds: Need $${analysis.totalAllocated.toFixed(2)}, have $${accountBalance.toFixed(2)}. Skipping trades.`,
-        undefined,
-        { required: analysis.totalAllocated, available: accountBalance, shortfall },
-        'cron'
-      );
-      
-      return res.status(200).json({
-        success: true,
-        skipped: true,
-        reason: 'insufficient_funds',
-        contracts_analyzed: contracts.length,
-        required: analysis.totalAllocated,
-        available: accountBalance,
-        shortfall: shortfall,
-        message: `Skipped trading: Insufficient funds. Need $${analysis.totalAllocated.toFixed(2)}, have $${accountBalance.toFixed(2)}`
-      });
-    }
-    
-    console.log(`   ✅ Sufficient funds available`);
     
     // 4. Execute trades
     const results = await executeTrades(analysis);

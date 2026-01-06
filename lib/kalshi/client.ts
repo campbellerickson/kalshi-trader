@@ -161,6 +161,28 @@ export async function getOrderbook(ticker: string): Promise<Orderbook> {
 }
 
 /**
+ * Get account balance from Kalshi
+ * Reference: https://docs.kalshi.com/reference/get-portfolio-balance
+ */
+export async function getAccountBalance(): Promise<number> {
+  const path = '/portfolio/balance';
+  const response = await fetch(`${KALSHI_API_BASE}${path}`, {
+    method: 'GET',
+    headers: createAuthHeaders('GET', path),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch balance: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  // Kalshi returns balance in cents, convert to dollars
+  const balance = data.balance || data.available_balance || data.total_balance || 0;
+  return balance / 100;
+}
+
+/**
  * Place an order on Kalshi
  * Reference: https://docs.kalshi.com/reference/post-portfolio-orders
  */
