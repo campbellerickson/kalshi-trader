@@ -1,0 +1,25 @@
+"use strict";(()=>{var e={};e.id=910,e.ids=[910],e.modules={145:e=>{e.exports=require("next/dist/compiled/next-server/pages-api.runtime.prod.js")},4770:e=>{e.exports=require("crypto")},1309:e=>{e.exports=import("@supabase/supabase-js")},9926:e=>{e.exports=import("zod")},3940:(e,t,r)=>{r.a(e,async(e,a)=>{try{r.r(t),r.d(t,{config:()=>u,default:()=>d,routeModule:()=>l});var n=r(1802),o=r(7153),s=r(6249),c=r(5969),i=e([c]);c=(i.then?(await i)():i)[0];let d=(0,s.l)(c,"default"),u=(0,s.l)(c,"config"),l=new n.PagesAPIRouteModule({definition:{kind:o.x.PAGES_API,page:"/api/cron/check-resolutions",pathname:"/api/cron/check-resolutions",bundlePath:"",filename:""},userland:c});a()}catch(e){a(e)}})},8231:(e,t,r)=>{r.a(e,async(e,a)=>{try{r.d(t,{O:()=>c});var n=r(1309),o=r(8159),s=e([n,o]);[n,o]=s.then?(await s)():s;let c=(0,n.createClient)(o.O.SUPABASE_URL,o.O.SUPABASE_KEY);a()}catch(e){a(e)}})},3435:(e,t,r)=>{r.a(e,async(e,a)=>{try{r.d(t,{$r:()=>i,FC:()=>p,Jg:()=>l,Of:()=>_,Pq:()=>d,Xb:()=>u,Xx:()=>g,dY:()=>w,fT:()=>m,lv:()=>c,mo:()=>s,sl:()=>f,zC:()=>h});var n=r(8231),o=e([n]);async function s(){let{data:e,error:t}=await n.O.from("trades").select(`
+      *,
+      contract:contracts(*)
+    `).eq("status","open").order("executed_at",{ascending:!1});if(t)throw t;return e}async function c(e=50){let{data:t,error:r}=await n.O.from("trades").select(`
+      *,
+      contract:contracts(*)
+    `).order("executed_at",{ascending:!1}).limit(e);if(r)throw r;return t}async function i(){let e=new Date;e.setHours(0,0,0,0);let{data:t,error:r}=await n.O.from("trades").select(`
+      *,
+      contract:contracts(*)
+    `).gte("executed_at",e.toISOString()).order("executed_at",{ascending:!1});if(r)throw r;return t}async function d(e,t){let{data:r,error:a}=await n.O.from("trades").select(`
+      *,
+      contract:contracts(*)
+    `).gte("executed_at",e.toISOString()).lte("executed_at",t.toISOString()).order("executed_at",{ascending:!1});if(a)throw a;return r}async function u(e){let{data:t,error:r}=await n.O.from("trades").insert({...e,status:"open",executed_at:new Date().toISOString()}).select(`
+      *,
+      contract:contracts(*)
+    `).single();if(r)throw r;return t}async function l(e,t){let{data:r,error:a}=await n.O.from("trades").update(t).eq("id",e).select(`
+      *,
+      contract:contracts(*)
+    `).single();if(a)throw a;return r}async function f(){return(await s()).map(e=>({trade:e,current_odds:e.entry_odds,unrealized_pnl:0,unrealized_pnl_pct:0}))}async function w(){let{data:e}=await n.O.from("performance_metrics").select("bankroll").order("date",{ascending:!1}).limit(1).single();return e?.bankroll||Number(process.env.INITIAL_BANKROLL)||1e3}async function p(){return Number(process.env.INITIAL_BANKROLL)||1e3}async function g(e){let{data:t}=await n.O.from("performance_metrics").select("bankroll").lte("date",e.toISOString()).order("date",{ascending:!1}).limit(1).single();return t?.bankroll||Number(process.env.INITIAL_BANKROLL)||1e3}async function _(){let e=await w(),t=(await f()).reduce((e,t)=>e+t.trade.position_size,0);return e-t}async function m(){let{data:e,error:t}=await n.O.from("notification_preferences").select("*").eq("user_id","default").single();if(t&&"PGRST116"!==t.code)throw t;return e||{enabled:!1}}async function h(e){let t=new Date(Date.now()-36e5*e),{data:r,error:a}=await n.O.from("stop_loss_events").select(`
+      *,
+      trade:trades(
+        *,
+        contract:contracts(*)
+      )
+    `).gte("executed_at",t.toISOString()).order("executed_at",{ascending:!1});if(a)throw a;return r}n=(o.then?(await o)():o)[0],a()}catch(e){a(e)}})},3412:(e,t,r)=>{r.a(e,async(e,a)=>{try{r.d(t,{J:()=>c});var n=r(913),o=r(3435),s=e([n,o]);async function c(){console.log("\uD83D\uDD0D Checking for resolved trades...");let e=await (0,o.mo)();for(let t of(console.log(`   Found ${e.length} open trades`),e))try{let e=await (0,n.YK)(t.contract.market_id);if(e.resolved&&e.outcome){let r=e.outcome===t.side,a="won"===t.status?1*t.contracts_purchased-t.position_size:-t.position_size;await (0,o.Jg)(t.id,{status:r?"won":"lost",exit_odds:e.final_odds||e.yes_odds,pnl:a,resolved_at:e.resolved_at||new Date}),console.log(`${r?"✅ WON":"❌ LOST"}: ${t.contract.question.substring(0,50)}... | P&L: $${a.toFixed(2)}`)}}catch(e){console.error(`   ⚠️ Error checking trade ${t.id}:`,e.message)}}[n,o]=s.then?(await s)():s,a()}catch(e){a(e)}})},5969:(e,t,r)=>{r.a(e,async(e,a)=>{try{r.r(t),r.d(t,{default:()=>s});var n=r(3412),o=e([n]);async function s(e,t){if(e.headers.authorization!==`Bearer ${process.env.CRON_SECRET}`)return t.status(401).json({error:"Unauthorized"});try{return console.log("\uD83D\uDD0D Checking for resolved trades..."),await (0,n.J)(),t.status(200).json({success:!0})}catch(a){console.error("❌ Resolution check failed:",a);let{logCronError:e}=await r.e(610).then(r.bind(r,7610));return await e("check-resolutions",a),t.status(500).json({error:a.message})}}n=(o.then?(await o)():o)[0],a()}catch(e){a(e)}})}};var t=require("../../../webpack-api-runtime.js");t.C(e);var r=e=>t(t.s=e),a=t.X(0,[947],()=>r(3940));module.exports=a})();

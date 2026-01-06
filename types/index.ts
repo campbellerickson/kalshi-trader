@@ -24,6 +24,7 @@ export interface Trade {
   contracts_purchased: number;
   ai_confidence: number;
   ai_reasoning: string;
+  risk_factors?: string[]; // Risk factors identified by AI
   status: 'open' | 'won' | 'lost' | 'stopped';
   exit_odds?: number;
   pnl?: number;

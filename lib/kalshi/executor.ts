@@ -48,6 +48,9 @@ export async function executeTrades(
         contracts_purchased: contracts,
         ai_confidence: decision.confidence,
         ai_reasoning: decision.reasoning,
+        risk_factors: decision.riskFactors && decision.riskFactors.length > 0 
+          ? decision.riskFactors 
+          : undefined,
       });
       
       results.push({ success: true, trade });

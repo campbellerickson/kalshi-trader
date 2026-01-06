@@ -83,6 +83,7 @@ export async function logTrade(trade: {
   contracts_purchased: number;
   ai_confidence: number;
   ai_reasoning: string;
+  risk_factors?: string[]; // Optional risk factors from AI
 }): Promise<Trade> {
   const { data, error } = await supabase
     .from('trades')
