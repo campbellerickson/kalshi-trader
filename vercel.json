@@ -19,6 +19,10 @@
     {
       "path": "/pages/api/cron/refresh-markets",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/pages/api/cron/monthly-analysis",
+      "schedule": "0 0 1 * *"
     }
   ],
   "framework": "nextjs",

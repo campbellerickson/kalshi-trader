@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getRecentTrades, getOpenTrades, getCurrentBankroll, getInitialBankroll, getTradesInRange, getOpenPositions } from '../../lib/database/queries';
 import { getMarket } from '../../lib/kalshi/client';
 import { calculateWinRate, calculateTotalPnL } from '../../lib/utils/metrics';
+import { getMonthlyAnalysis, getAllMonthlyAnalyses } from '../../lib/analysis/monthly';
 
 export default async function handler(
   req: NextApiRequest,
@@ -74,6 +75,18 @@ export default async function handler(
     // Get recent trades (last 20)
     const recentTrades = allTrades.slice(0, 20);
     
+    // Get monthly analyses (last 3 months)
+    const monthlyAnalyses = await getAllMonthlyAnalyses();
+    const recentMonthlyAnalyses = monthlyAnalyses.slice(0, 3);
+    
+    // Get current month analysis if available
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+    const lastMonthAnalysis = await getMonthlyAnalysis(
+      currentMonth === 1 ? currentYear - 1 : currentYear,
+      currentMonth === 1 ? 12 : currentMonth - 1
+    );
+    
     return res.status(200).json({
       currentBankroll,
       initialBankroll,
@@ -88,6 +101,8 @@ export default async function handler(
       ytdReturn,
       recentTrades,
       openPositions: positionsWithOdds,
+      monthlyAnalyses: recentMonthlyAnalyses,
+      lastMonthAnalysis, // Most recent completed month
     });
   } catch (error: any) {
     console.error('Dashboard API error:', error);

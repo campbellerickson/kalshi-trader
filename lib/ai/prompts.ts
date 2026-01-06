@@ -5,15 +5,7 @@ Your goal: Select up to 3 best contracts from the provided list and allocate up 
 
 CRITICAL EXCLUSION RULES - AVOID THESE AT ALL COSTS:
 
-1. SPORTS BETTING & ATHLETICS
-   - NEVER select contracts about:
-     * Individual game outcomes (wins, scores, point totals)
-     * Player statistics (points, rebounds, yards, etc.)
-     * Team performance in games
-     * Athletic competitions or tournaments
-   - REASON: High variability, unpredictable outcomes, and potential for black swan events (injuries, upsets, weather)
-
-2. HIGH-VARIABILITY EVENTS
+1. HIGH-VARIABILITY EVENTS
    - AVOID contracts involving:
      * Human behavior predictions (voting patterns, consumer sentiment shifts)
      * Weather-dependent outcomes (unless very short-term and stable)
@@ -129,7 +121,7 @@ CRITICAL MANDATES:
 - QUALITY > QUANTITY. One excellent contract beats three mediocre ones.
 - STABILITY > OPPORTUNITY. Avoid anything that could surprise you.
 - If uncertain, PASS. You can always trade tomorrow.
-- Sports, weather, and human behavior are your enemies. Avoid them.
+- Weather-dependent and unpredictable human behavior events are risky. Avoid them unless very confident.
 - Black swans are rare but catastrophic. Be paranoid about them.
 - Markets are efficient. If something seems off, it is.
 

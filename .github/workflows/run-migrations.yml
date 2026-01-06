@@ -1,0 +1,34 @@
+name: Run Database Migrations
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'lib/database/migrations/**'
+      - 'MIGRATIONS_COMPLETE.sql'
+  workflow_dispatch:
+
+jobs:
+  run-migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Notify Migration Required
+        run: |
+          echo "📋 Database migrations have been updated"
+          echo "⚠️  Manual migration required:"
+          echo "   1. Go to Supabase Dashboard → SQL Editor"
+          echo "   2. Run MIGRATIONS_COMPLETE.sql"
+          echo "   3. See MIGRATION_GUIDE.md for details"
+          
+      - name: List Migration Files
+        run: |
+          echo "Available migrations:"
+          ls -la lib/database/migrations/
+          if [ -f "MIGRATIONS_COMPLETE.sql" ]; then
+            echo "Complete migration: MIGRATIONS_COMPLETE.sql"
+          fi
+
