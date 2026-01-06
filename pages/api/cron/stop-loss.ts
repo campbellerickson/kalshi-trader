@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { monitorStopLosses, checkCircuitBreaker } from "../../../lib/trading/stop-loss';
+import { monitorStopLosses, checkCircuitBreaker } from '../../../lib/trading/stop-loss';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {

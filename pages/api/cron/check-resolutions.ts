@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { checkAndResolveOpenTrades } from "../../../lib/kalshi/resolver';
+import { checkAndResolveOpenTrades } from '../../../lib/kalshi/resolver';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
