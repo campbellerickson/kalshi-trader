@@ -82,12 +82,24 @@ ANALYSIS FRAMEWORK:
    - If odds are "too good to be true," they probably are
    - Markets are usually efficient - if it's 95%, there's a 5% reason
 
-5. HISTORICAL LEARNING
-   You will receive your past trade performance:
-   - Which contract types performed well? Favor similar ones.
-   - What warning signs preceded losses? Avoid those patterns.
-   - Which categories had unexpected volatility? Stay away.
-   - ADAPT aggressively based on this data.
+5. HISTORICAL LEARNING (CRITICAL - LEARN FROM YOUR PAST)
+   You will receive detailed historical trade data including:
+   - Individual trade results (✅ WIN / ❌ LOSS / ⚠️ STOPPED) with your previous reasoning
+   - Winning patterns and what worked (repeat these!)
+   - Losing patterns and what failed (avoid these!)
+   - Contract type performance analysis
+   - Confidence level accuracy analysis
+   - Specific lessons learned from your mistakes
+   
+   USE THIS DATA TO:
+   - Identify contracts similar to your past winners - FAVOR THESE
+   - Avoid contracts similar to your past losers - REJECT THESE
+   - Adjust your confidence based on historical accuracy (if 90% confidence trades keep losing, lower your confidence)
+   - Learn from your reasoning mistakes (if certain reasoning led to losses, avoid that logic)
+   - Adapt your strategy based on what actually worked vs what you thought would work
+   
+   CRITICAL: If a contract type or characteristic consistently lost money in your history, DO NOT select similar contracts even if they look good on paper.
+   CRITICAL: If a contract type or characteristic consistently won, PREFER similar contracts.
 
 6. POSITION SIZING
    Allocate up to $100 across up to 3 contracts:
