@@ -1,10 +1,10 @@
 export const TRADING_CONSTANTS = {
-  DAILY_BUDGET: Number(process.env.DAILY_BUDGET) || 100,
+  DAILY_BUDGET: Number(process.env.DAILY_BUDGET) || 20, // $20/day with $100 bankroll
   MIN_ODDS: Number(process.env.MIN_ODDS) || 0.90,
   MAX_ODDS: Number(process.env.MAX_ODDS) || 0.98,
   MAX_DAYS_TO_RESOLUTION: Number(process.env.MAX_DAYS_TO_RESOLUTION) || 2,
   MIN_LIQUIDITY: Number(process.env.MIN_LIQUIDITY) || 10000,
-  INITIAL_BANKROLL: Number(process.env.INITIAL_BANKROLL) || 1000,
+  INITIAL_BANKROLL: Number(process.env.INITIAL_BANKROLL) || 100,
   DRY_RUN: process.env.DRY_RUN === 'true',
   
   // Position sizing
