@@ -29,22 +29,19 @@ function normalizePemKey(raw: string): string {
 }
 
 function createSignature(timestamp: string, method: string, path: string, body?: string): string {
-  // Normalize path: remove query parameters for signature (Kalshi signs the base path only)
-  // Query params are sent in the request but not included in signature
-  const basePath = path.split('?')[0];
-  
+  // Kalshi signature includes the full path with query parameters
+  // The path should be exactly as it appears in the request URL
   // Build the message to sign: timestamp + method + path + (body if present)
   // According to Kalshi docs: timestamp + HTTP_METHOD + request_path + request_body
-  const message = `${timestamp}${method.toUpperCase()}${basePath}${body || ''}`;
+  const message = `${timestamp}${method.toUpperCase()}${path}${body || ''}`;
 
   // Debug logging (only in non-production)
   if (process.env.NODE_ENV !== 'production' || process.env.DEBUG_AUTH === 'true') {
     console.log('🔐 Signature Debug:', {
       timestamp,
       method: method.toUpperCase(),
-      path: basePath,
-      fullPath: path,
-      bodyLength: body?.length || 0,
+      path: path,
+      bodyLength: body ? body.length : 0,
       messageLength: message.length,
       messagePreview: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
     });
