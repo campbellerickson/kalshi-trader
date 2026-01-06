@@ -1,5 +1,8 @@
+-- Kalshi Trader Database Migration
+-- Run this in Supabase SQL Editor: https://supabase.com/dashboard/project/dseoabejewthjyyxmdwp/sql
+
 -- Contracts table
-CREATE TABLE contracts (
+CREATE TABLE IF NOT EXISTS contracts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   market_id TEXT NOT NULL UNIQUE,
   question TEXT NOT NULL,
@@ -15,7 +18,7 @@ CREATE TABLE contracts (
 );
 
 -- Trades table
-CREATE TABLE trades (
+CREATE TABLE IF NOT EXISTS trades (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   contract_id UUID REFERENCES contracts(id),
   executed_at TIMESTAMP DEFAULT NOW(),
@@ -32,7 +35,7 @@ CREATE TABLE trades (
 );
 
 -- AI learning table
-CREATE TABLE ai_decisions (
+CREATE TABLE IF NOT EXISTS ai_decisions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   trade_id UUID REFERENCES trades(id),
   contract_snapshot JSONB, -- Full contract data at decision time
@@ -45,7 +48,7 @@ CREATE TABLE ai_decisions (
 );
 
 -- Performance metrics table
-CREATE TABLE performance_metrics (
+CREATE TABLE IF NOT EXISTS performance_metrics (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   date DATE NOT NULL UNIQUE,
   trades_executed INT,
@@ -60,7 +63,7 @@ CREATE TABLE performance_metrics (
 );
 
 -- Notification preferences table
-CREATE TABLE notification_preferences (
+CREATE TABLE IF NOT EXISTS notification_preferences (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id TEXT NOT NULL DEFAULT 'default',
   phone_number TEXT,
@@ -72,7 +75,7 @@ CREATE TABLE notification_preferences (
 );
 
 -- Daily reports table
-CREATE TABLE daily_reports (
+CREATE TABLE IF NOT EXISTS daily_reports (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   report_date DATE NOT NULL,
   trades_executed INT,
@@ -91,7 +94,7 @@ CREATE TABLE daily_reports (
 );
 
 -- Stop loss events table
-CREATE TABLE stop_loss_events (
+CREATE TABLE IF NOT EXISTS stop_loss_events (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   trade_id UUID REFERENCES trades(id),
   trigger_odds DECIMAL(5,4) NOT NULL,
@@ -103,7 +106,7 @@ CREATE TABLE stop_loss_events (
 );
 
 -- Stop loss configuration
-CREATE TABLE stop_loss_config (
+CREATE TABLE IF NOT EXISTS stop_loss_config (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   trigger_threshold DECIMAL(5,4) DEFAULT 0.80,
   enabled BOOLEAN DEFAULT true,
@@ -112,18 +115,8 @@ CREATE TABLE stop_loss_config (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Create indexes
-CREATE INDEX idx_contracts_end_date ON contracts(end_date);
-CREATE INDEX idx_contracts_market_id ON contracts(market_id);
-CREATE INDEX idx_trades_status ON trades(status);
-CREATE INDEX idx_trades_contract_id ON trades(contract_id);
-CREATE INDEX idx_trades_executed_at ON trades(executed_at);
-CREATE INDEX idx_performance_date ON performance_metrics(date);
-CREATE INDEX idx_stop_loss_trade ON stop_loss_events(trade_id);
-CREATE INDEX idx_stop_loss_executed_at ON stop_loss_events(executed_at);
-
 -- Error logs table
-CREATE TABLE error_logs (
+CREATE TABLE IF NOT EXISTS error_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   timestamp TIMESTAMP DEFAULT NOW(),
   level TEXT NOT NULL, -- 'error', 'warning', 'info'
@@ -135,12 +128,26 @@ CREATE TABLE error_logs (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Create indexes for error logs
-CREATE INDEX idx_error_logs_timestamp ON error_logs(timestamp);
-CREATE INDEX idx_error_logs_level ON error_logs(level);
-CREATE INDEX idx_error_logs_source ON error_logs(source);
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_contracts_end_date ON contracts(end_date);
+CREATE INDEX IF NOT EXISTS idx_contracts_market_id ON contracts(market_id);
+CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
+CREATE INDEX IF NOT EXISTS idx_trades_contract_id ON trades(contract_id);
+CREATE INDEX IF NOT EXISTS idx_trades_executed_at ON trades(executed_at);
+CREATE INDEX IF NOT EXISTS idx_performance_date ON performance_metrics(date);
+CREATE INDEX IF NOT EXISTS idx_stop_loss_trade ON stop_loss_events(trade_id);
+CREATE INDEX IF NOT EXISTS idx_stop_loss_executed_at ON stop_loss_events(executed_at);
+CREATE INDEX IF NOT EXISTS idx_error_logs_timestamp ON error_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_error_logs_level ON error_logs(level);
+CREATE INDEX IF NOT EXISTS idx_error_logs_source ON error_logs(source);
 
--- Insert default stop loss config
+-- Insert default stop loss config (only if it doesn't exist)
 INSERT INTO stop_loss_config (trigger_threshold, enabled) 
-VALUES (0.80, true);
+SELECT 0.80, true
+WHERE NOT EXISTS (SELECT 1 FROM stop_loss_config);
+
+-- Initialize initial bankroll in performance_metrics
+INSERT INTO performance_metrics (date, bankroll, trades_executed, total_pnl)
+SELECT CURRENT_DATE, 100.00, 0, 0.00
+WHERE NOT EXISTS (SELECT 1 FROM performance_metrics WHERE date = CURRENT_DATE);
 
