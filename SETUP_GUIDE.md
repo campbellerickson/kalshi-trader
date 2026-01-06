@@ -45,21 +45,6 @@ npm install
 4. Create a new API key
 5. Copy the key (starts with `sk-ant-`)
 
-### Twilio (SMS Notifications) - Optional
-
-1. Go to [twilio.com](https://twilio.com)
-2. Sign up for a free trial account
-3. Get a phone number from the Twilio Console
-4. Note your Account SID and Auth Token from the dashboard
-
-### SendGrid (Email Notifications) - Optional
-
-1. Go to [sendgrid.com](https://sendgrid.com)
-2. Sign up for a free account
-3. Verify your sender email address
-4. Create an API key in Settings > API Keys
-5. Copy the API key
-
 ## Step 4: Configure Environment Variables
 
 Create a `.env` file in the project root:
@@ -81,16 +66,6 @@ SUPABASE_KEY=your-supabase-anon-key-here
 CRON_SECRET=generate-a-random-secret-string-here
 # You can generate one with: openssl rand -base64 32
 
-# Notifications (Optional)
-NOTIFICATION_EMAIL=your-email@example.com
-SENDGRID_API_KEY=your-sendgrid-api-key-here
-SENDGRID_FROM_EMAIL=reports@yourdomain.com
-TWILIO_ACCOUNT_SID=your-twilio-account-sid
-TWILIO_AUTH_TOKEN=your-twilio-auth-token
-TWILIO_PHONE_NUMBER=+1234567890
-ADMIN_PHONE_NUMBER=+1234567890
-ADMIN_EMAIL=your-admin-email@example.com
-
 # Trading Parameters
 DAILY_BUDGET=100
 MIN_ODDS=0.90
@@ -104,18 +79,7 @@ DRY_RUN=true
 # Set to false when ready to trade with real money
 ```
 
-## Step 5: Set Up Notification Preferences
-
-After deploying, you'll need to set up notification preferences in the database:
-
-```sql
-INSERT INTO notification_preferences (user_id, phone_number, email, report_time, timezone, enabled)
-VALUES ('default', '+1234567890', 'your-email@example.com', '07:00:00', 'America/New_York', true);
-```
-
-Replace with your actual phone number and email.
-
-## Step 6: Deploy to Vercel
+## Step 5: Deploy to Vercel
 
 1. Install Vercel CLI: `npm i -g vercel`
 2. Login: `vercel login`
@@ -134,11 +98,11 @@ vercel env add CRON_SECRET
 
 5. Deploy: `vercel --prod`
 
-## Step 7: Configure Cron Jobs
+## Step 6: Configure Cron Jobs
 
 Vercel will automatically set up cron jobs based on `vercel.json`. Verify they're active in your Vercel dashboard under Settings > Cron Jobs.
 
-## Step 8: Test the System
+## Step 7: Test the System
 
 ### Test Daily Scan (Dry Run)
 
@@ -161,7 +125,7 @@ curl https://your-app.vercel.app/api/cron/stop-loss \
   -H "Authorization: Bearer YOUR_CRON_SECRET"
 ```
 
-## Step 9: Enable Live Trading
+## Step 8: Enable Live Trading
 
 Once you've tested everything in dry run mode:
 
@@ -169,7 +133,7 @@ Once you've tested everything in dry run mode:
 2. Ensure you have sufficient funds in your Polymarket wallet
 3. Monitor the first few trades closely
 
-## Step 10: Set Up Backtesting (Optional)
+## Step 9: Set Up Backtesting (Optional)
 
 ### Load Historical Data
 
@@ -225,11 +189,11 @@ npm run backtest 2024-01-01 2024-12-31 1000 true
 - Verify CRON_SECRET matches in environment variables
 - Check Vercel logs for errors
 
-### Notifications Not Sending
+### Reports Not Generating
 
-- Verify Twilio/SendGrid credentials
-- Check notification preferences in database
-- Ensure phone numbers are in E.164 format (+1234567890)
+- Check Vercel logs for errors
+- Verify database connection
+- Check that cron jobs are running
 
 ## Security Notes
 

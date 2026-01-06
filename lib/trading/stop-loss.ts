@@ -229,9 +229,9 @@ ${events.map(e => {
 Total realized loss: $${Math.abs(totalLoss).toFixed(2)}
   `.trim();
   
-  if (process.env.ADMIN_PHONE_NUMBER) {
-    await sendSMS(process.env.ADMIN_PHONE_NUMBER, message);
-  }
+  // Log stop loss alert (notifications removed)
+  console.log('🚨 STOP LOSS ALERT:', message);
+  await sendSMS('admin', message);
 }
 
 export async function checkCircuitBreaker(events: StopLossEvent[]): Promise<void> {
@@ -245,12 +245,10 @@ export async function checkCircuitBreaker(events: StopLossEvent[]): Promise<void
       .update({ enabled: false })
       .eq('id', 1);
     
-    if (process.env.ADMIN_PHONE_NUMBER) {
-      await sendSMS(
-        process.env.ADMIN_PHONE_NUMBER,
-        `🔴 CIRCUIT BREAKER ACTIVATED\n\n3+ stop losses triggered in 24 hours.\nTrading has been automatically halted.`
-      );
-    }
+    // Log circuit breaker (notifications removed)
+    const circuitBreakerMessage = `🔴 CIRCUIT BREAKER ACTIVATED\n\n3+ stop losses triggered in 24 hours.\nTrading has been automatically halted.`;
+    console.error('🔴 CIRCUIT BREAKER:', circuitBreakerMessage);
+    await sendSMS('admin', circuitBreakerMessage);
   }
 }
 

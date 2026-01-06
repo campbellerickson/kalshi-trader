@@ -11,17 +11,9 @@ ${error.stack?.substring(0, 500)}
 
 Time: ${new Date().toISOString()}`;
 
-  if (process.env.ADMIN_PHONE_NUMBER) {
-    await sendSMS(process.env.ADMIN_PHONE_NUMBER, message);
-  }
-  
-  if (process.env.ADMIN_EMAIL) {
-    await sendEmail(
-      process.env.ADMIN_EMAIL,
-      '🚨 Polymarket Trader Error',
-      `<pre>${message}</pre>`
-    );
-  }
+  // Log error (notifications removed)
+  console.error('🚨 ERROR ALERT:', message);
+  await sendEmail('admin@polymarket-trader.com', '🚨 Polymarket Trader Error', `<pre>${message}</pre>`);
 }
 
 export async function sendDailySummary(summary: {
@@ -37,8 +29,8 @@ Trades Executed: ${summary.trades_executed}
 Total Allocated: $${summary.total_allocated.toFixed(2)}
 Current Bankroll: $${summary.current_bankroll.toFixed(2)}`;
 
-  if (process.env.ADMIN_PHONE_NUMBER) {
-    await sendSMS(process.env.ADMIN_PHONE_NUMBER, message);
-  }
+  // Log summary (notifications removed)
+  console.log('📊 DAILY SUMMARY:', message);
+  await sendSMS('admin', message);
 }
 

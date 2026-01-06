@@ -25,13 +25,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     console.error('❌ Stop loss monitor failed:', error);
     
-    if (process.env.ADMIN_PHONE_NUMBER) {
-      const { sendSMS } = await import('../../lib/notifications/sms');
-      await sendSMS(
-        process.env.ADMIN_PHONE_NUMBER,
-        `🚨 CRITICAL: Stop loss monitor failed: ${error.message}`
-      );
-    }
+    // Log error (notifications removed)
+    const { sendSMS } = await import('../../lib/notifications/sms');
+    console.error('🚨 CRITICAL: Stop loss monitor failed:', error.message);
+    await sendSMS('admin', `🚨 CRITICAL: Stop loss monitor failed: ${error.message}`);
     
     return res.status(500).json({ error: error.message });
   }

@@ -62,12 +62,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     console.error('❌ Morning report failed:', error);
     
-    if (process.env.ADMIN_PHONE_NUMBER) {
-      await sendSMS(
-        process.env.ADMIN_PHONE_NUMBER,
-        `⚠️ Daily report failed: ${error.message}`
-      );
-    }
+    // Log error (notifications removed)
+    console.error('⚠️ Daily report failed:', error.message);
+    await sendSMS('admin', `⚠️ Daily report failed: ${error.message}`);
     
     return res.status(500).json({ error: error.message });
   }

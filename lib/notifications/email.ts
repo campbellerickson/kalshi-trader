@@ -1,34 +1,16 @@
-import sgMail from '@sendgrid/mail';
-import { env } from '../../config/env';
 import { DailyReportData, formatReportForEmail } from './report';
-
-if (env.SENDGRID_API_KEY) {
-  sgMail.setApiKey(env.SENDGRID_API_KEY);
-}
 
 export async function sendEmail(
   to: string,
   subject: string,
   html: string
 ): Promise<void> {
-  if (!env.SENDGRID_API_KEY) {
-    console.log('📧 Email not configured, would send:', subject);
-    return;
-  }
-
-  try {
-    await sgMail.send({
-      to,
-      from: env.SENDGRID_FROM_EMAIL || 'reports@polymarket-trader.com',
-      subject,
-      html
-    });
-    
-    console.log(`✅ Email sent to ${to}`);
-  } catch (error: any) {
-    console.error(`❌ Failed to send email to ${to}:`, error.message);
-    throw error;
-  }
+  // Email notifications removed - logging only
+  console.log('📧 Email (log only):', subject);
+  console.log(`   Would send to: ${to}`);
+  // Log a truncated version of the HTML
+  const textPreview = html.replace(/<[^>]*>/g, '').substring(0, 200);
+  console.log(`   Preview: ${textPreview}...`);
 }
 
 export async function sendDailyReportEmail(
@@ -39,6 +21,12 @@ export async function sendDailyReportEmail(
   const subject = `${emoji} Daily Report: ${reportData.mtdPnL >= 0 ? '+' : ''}$${reportData.mtdPnL.toFixed(2)} MTD`;
   const html = formatReportForEmail(reportData);
   
-  await sendEmail(email, subject, html);
+  console.log('📧 Daily Report Email (log only):');
+  console.log(`   Subject: ${subject}`);
+  console.log(`   Would send to: ${email}`);
+  // Log key metrics
+  console.log(`   MTD P&L: $${reportData.mtdPnL.toFixed(2)}`);
+  console.log(`   YTD P&L: $${reportData.ytdPnL.toFixed(2)}`);
+  console.log(`   Total Liquidity: $${reportData.totalLiquidity.toFixed(2)}`);
 }
 

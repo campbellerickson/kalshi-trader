@@ -16,15 +16,6 @@ const envSchema = z.object({
   // Security
   CRON_SECRET: z.string().min(1),
   
-  // Notifications
-  NOTIFICATION_EMAIL: z.string().email().optional(),
-  SENDGRID_API_KEY: z.string().optional(),
-  TWILIO_ACCOUNT_SID: z.string().optional(),
-  TWILIO_AUTH_TOKEN: z.string().optional(),
-  TWILIO_PHONE_NUMBER: z.string().optional(),
-  ADMIN_PHONE_NUMBER: z.string().optional(),
-  ADMIN_EMAIL: z.string().email().optional(),
-  
   // Trading Parameters
   DAILY_BUDGET: z.string().transform(Number).default('100'),
   MIN_ODDS: z.string().transform(Number).default('0.90'),
