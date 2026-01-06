@@ -98,9 +98,25 @@ export async function fetchMarkets(): Promise<Market[]> {
   // Kalshi API returns { markets: [...] } structure
   const markets = data.markets || data.cursor?.markets || [];
   
+  // Debug: Log first market structure to understand API response format
+  if (markets.length > 0) {
+    console.log('Sample Kalshi market structure (first market):', JSON.stringify(markets[0], null, 2));
+    console.log('Total markets fetched:', markets.length);
+  }
+  
   return markets.map((market: any) => {
-    const yesOdds = parseFloat(market.yes_bid || market.yesBid || market.yes_odds || 0) / 100;
-    const noOdds = parseFloat(market.no_bid || market.noBid || market.no_odds || (100 - parseFloat(market.yes_bid || market.yesBid || market.yes_odds || 0))) / 100;
+    // Try multiple possible field names for yes bid/price
+    // Kalshi uses price in cents (0-100), so we need to divide by 100
+    const yesPrice = market.yes_bid || market.yesBid || market.yes_price || market.yesPrice || 
+                     market.yes_odds || market.yesOdds || 
+                     (market.last_price ? market.last_price / 100 : null) ||
+                     (market.current_price ? market.current_price / 100 : null);
+    const yesOdds = yesPrice ? parseFloat(yesPrice) / 100 : 0;
+    
+    const noPrice = market.no_bid || market.noBid || market.no_price || market.noPrice || 
+                    market.no_odds || market.noOdds ||
+                    (yesPrice ? 100 - parseFloat(yesPrice) : null);
+    const noOdds = noPrice ? parseFloat(noPrice) / 100 : (yesOdds > 0 ? 1 - yesOdds : 0);
     
     return {
       market_id: market.ticker || market.market_id || market.id,
@@ -108,7 +124,8 @@ export async function fetchMarkets(): Promise<Market[]> {
       end_date: new Date(market.expiration_time || market.expirationTime || market.end_date),
       yes_odds: yesOdds,
       no_odds: noOdds,
-      liquidity: parseFloat(market.liquidity || market.open_interest || 0),
+      liquidity: parseFloat(market.liquidity || market.open_interest || market.volume || 
+                           market.total_volume || market.daily_volume || market.volume_24h || 0),
       volume_24h: parseFloat(market.volume || market.volume_24h || 0),
       resolved: market.status === 'closed' || market.status === 'resolved' || false,
       outcome: market.result ? (market.result === 'yes' ? 'YES' : 'NO') : undefined,

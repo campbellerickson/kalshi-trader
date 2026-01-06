@@ -11,6 +11,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const markets = await fetchMarkets();
     
+    // Fetch raw API response for debugging
+    const { fetchMarkets: _ } = await import('../../../lib/kalshi/client');
+    // Note: We'll add raw response logging in the client itself
+    
     const now = new Date();
     const filteredMarkets = markets.map((market) => {
       const daysToResolution = (market.end_date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
