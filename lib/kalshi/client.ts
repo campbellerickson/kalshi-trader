@@ -11,36 +11,52 @@ const KALSHI_API_BASE = 'https://api.elections.kalshi.com/trade-api/v2';
  * Signature is created by signing: timestamp + HTTP method + request path
  * For POST requests, the request body is also included in the signature
  */
-function createSignature(method: string, path: string, body?: string): string {
-  // Timestamp in milliseconds (not seconds)
-  const timestamp = Date.now().toString();
-  
+function normalizePemKey(raw: string): string {
+  let key = (raw ?? '').trim();
+
+  // Strip surrounding quotes if present (common when copy/pasted from env exports)
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1).trim();
+  }
+
+  // Convert escaped newlines to real newlines
+  key = key.replace(/\\n/g, '\n');
+
+  // Normalize CRLF
+  key = key.replace(/\r\n/g, '\n');
+
+  return key;
+}
+
+function createSignature(timestamp: string, method: string, path: string, body?: string): string {
   // Build the message to sign: timestamp + method + path + (body if present)
   const message = `${timestamp}${method.toUpperCase()}${path}${body || ''}`;
-  
-  // Sign with RSA private key
-  // Handle both escaped and unescaped newlines
-  let privateKey = env.KALSHI_PRIVATE_KEY;
-  
-  // Replace escaped newlines
-  privateKey = privateKey.replace(/\\n/g, '\n');
-  
-  // Ensure proper PEM format
-  if (!privateKey.includes('BEGIN RSA PRIVATE KEY') && !privateKey.includes('BEGIN PRIVATE KEY')) {
-    throw new Error('Invalid private key format: missing BEGIN marker');
+
+  const privateKeyPem = normalizePemKey(env.KALSHI_PRIVATE_KEY);
+  if (
+    !privateKeyPem.includes('BEGIN RSA PRIVATE KEY') &&
+    !privateKeyPem.includes('BEGIN PRIVATE KEY') &&
+    !privateKeyPem.includes('BEGIN ENCRYPTED PRIVATE KEY')
+  ) {
+    throw new Error('Invalid private key format: missing PEM BEGIN marker');
   }
-  
+
   try {
-    // Use RSA-SHA256 signing
-    const signature = crypto
-      .createSign('RSA-SHA256')
-      .update(message)
-      .sign(privateKey, 'base64');
-    
-    return signature;
+    const keyObject = crypto.createPrivateKey(privateKeyPem);
+
+    // Kalshi docs specify RSA-PSS; Node supports this via RSA_PKCS1_PSS_PADDING.
+    // Use a cast to avoid TS/lib typing mismatches across runtimes.
+    const constants: any = (crypto as any).constants;
+
+    const signature = crypto.sign('sha256', Buffer.from(message), {
+      key: keyObject,
+      padding: constants?.RSA_PKCS1_PSS_PADDING,
+      saltLength: constants?.RSA_PSS_SALTLEN_DIGEST,
+    });
+
+    return signature.toString('base64');
   } catch (error: any) {
-    console.error('Signature creation error:', error.message);
-    throw new Error(`Failed to create signature: ${error.message}. Check private key format.`);
+    throw new Error(`Failed to create signature: ${error?.message || String(error)}. Check KALSHI_PRIVATE_KEY format.`);
   }
 }
 
@@ -51,7 +67,7 @@ function createSignature(method: string, path: string, body?: string): string {
 function createAuthHeaders(method: string, path: string, body?: string): Record<string, string> {
   // Timestamp in milliseconds
   const timestamp = Date.now().toString();
-  const signature = createSignature(method, path, body);
+  const signature = createSignature(timestamp, method, path, body);
   
   return {
     'KALSHI-ACCESS-KEY': env.KALSHI_API_ID,
