@@ -1,0 +1,21 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/morning-report",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/daily-scan",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/cron/stop-loss",
+      "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/check-resolutions",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}
+
