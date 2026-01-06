@@ -16,6 +16,9 @@
       "path": "/api/cron/check-resolutions",
       "schedule": "0 */6 * * *"
     }
-  ]
+  ],
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "outputDirectory": ".next"
 }
 
