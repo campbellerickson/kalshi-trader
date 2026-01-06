@@ -1,17 +1,14 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../../config/env';
 import { AnalysisRequest, AnalysisResponse, Contract } from '../../types';
 import { TRADING_SYSTEM_PROMPT } from './prompts';
 import { buildHistoricalContext } from './learning';
 
-const anthropic = new Anthropic({
-  apiKey: env.ANTHROPIC_API_KEY,
-});
+const VERCEL_AI_GATEWAY_URL = 'https://api.vercel.ai/v1/messages';
 
 export async function analyzeContracts(
   request: AnalysisRequest
 ): Promise<AnalysisResponse> {
-  console.log(`🤖 Analyzing ${request.contracts.length} contracts with AI...`);
+  console.log(`🤖 Analyzing ${request.contracts.length} contracts with AI (via Vercel AI Gateway)...`);
 
   // Build historical context
   const historicalContext = await buildHistoricalContext();
@@ -19,24 +16,56 @@ export async function analyzeContracts(
   // Build prompt
   const prompt = buildAnalysisPrompt(request, historicalContext);
 
-  // Call Anthropic API
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 4000,
-    system: TRADING_SYSTEM_PROMPT,
-    messages: [{
-      role: 'user',
-      content: prompt
-    }]
+  // Call Vercel AI Gateway
+  const response = await fetch(VERCEL_AI_GATEWAY_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.VERCEL_AI_GATEWAY_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'anthropic/claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      system: TRADING_SYSTEM_PROMPT,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
+    })
   });
 
-  // Parse response
-  const content = response.content[0];
-  if (content.type !== 'text') {
-    throw new Error('Unexpected response type from Claude');
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Vercel AI Gateway error: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
-  const parsed = parseAIResponse(content.text, request.contracts);
+  const data = await response.json();
+  
+  // Parse response - Vercel AI Gateway returns Anthropic-compatible format
+  // Response can be in different formats depending on gateway configuration
+  let text: string;
+  
+  if (data.content && Array.isArray(data.content) && data.content[0]) {
+    // Anthropic format: { content: [{ type: 'text', text: '...' }] }
+    const content = data.content[0];
+    text = content.text || content.content || '';
+  } else if (data.text) {
+    // Direct text format
+    text = data.text;
+  } else if (typeof data === 'string') {
+    // String response
+    text = data;
+  } else {
+    // Try to extract from nested structure
+    text = JSON.stringify(data);
+    console.warn('Unexpected response format, attempting to parse:', JSON.stringify(data).substring(0, 200));
+  }
+  
+  if (!text || text.trim().length === 0) {
+    throw new Error(`Unexpected response format from Vercel AI Gateway: ${JSON.stringify(data).substring(0, 500)}`);
+  }
+
+  const parsed = parseAIResponse(text, request.contracts);
   
   console.log(`   ✅ AI selected ${parsed.selectedContracts.length} contracts`);
   console.log(`   💰 Total allocation: $${parsed.totalAllocated.toFixed(2)}`);

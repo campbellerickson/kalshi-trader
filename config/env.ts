@@ -6,8 +6,8 @@ const envSchema = z.object({
   POLYMARKET_PRIVATE_KEY: z.string().min(1),
   POLYMARKET_WALLET_ADDRESS: z.string().optional(),
   
-  // Anthropic
-  ANTHROPIC_API_KEY: z.string().min(1),
+  // Vercel AI Gateway
+  VERCEL_AI_GATEWAY_KEY: z.string().min(1),
   
   // Database
   SUPABASE_URL: z.string().url(),

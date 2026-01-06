@@ -37,13 +37,13 @@ npm install
 
 **Note**: Polymarket API access may require approval. Check their documentation for current requirements.
 
-### Anthropic Claude API
+### Vercel AI Gateway
 
-1. Go to [console.anthropic.com](https://console.anthropic.com)
-2. Sign up or log in
-3. Navigate to API Keys
-4. Create a new API key
-5. Copy the key (starts with `sk-ant-`)
+1. Go to your Vercel project dashboard
+2. Navigate to the "AI Gateway" section
+3. Create a new API key in the "API Keys" section
+4. Copy the key (starts with `vck_`)
+5. This key provides access to Claude and other AI models through Vercel's gateway
 
 ## Step 4: Configure Environment Variables
 
@@ -55,8 +55,8 @@ POLYMARKET_API_KEY=your_polymarket_api_key_here
 POLYMARKET_PRIVATE_KEY=your_polymarket_private_key_here
 POLYMARKET_WALLET_ADDRESS=your_wallet_address_here
 
-# Anthropic Claude API
-ANTHROPIC_API_KEY=sk-ant-your-key-here
+# Vercel AI Gateway
+VERCEL_AI_GATEWAY_KEY=vck_your-vercel-ai-gateway-key-here
 
 # Supabase Database
 SUPABASE_URL=https://your-project.supabase.co
@@ -89,7 +89,7 @@ DRY_RUN=true
 ```bash
 vercel env add POLYMARKET_API_KEY
 vercel env add POLYMARKET_PRIVATE_KEY
-vercel env add ANTHROPIC_API_KEY
+vercel env add VERCEL_AI_GATEWAY_KEY
 vercel env add SUPABASE_URL
 vercel env add SUPABASE_KEY
 vercel env add CRON_SECRET

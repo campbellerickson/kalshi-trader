@@ -13,7 +13,6 @@
   "author": "campbellerickson",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.20.0",
     "@supabase/supabase-js": "^2.39.0",
     "dotenv": "^16.3.1",
     "zod": "^3.22.4"
