@@ -6,10 +6,16 @@ const KALSHI_API_BASE = 'https://api.elections.kalshi.com/trade-api/v2';
 
 /**
  * Create signature for Kalshi API authentication
- * Kalshi uses RSA-PSS signature with the private key
+ * Based on official Kalshi API documentation: https://docs.kalshi.com/getting_started/api_keys
+ * 
+ * Signature is created by signing: timestamp + HTTP method + request path
+ * For POST requests, the request body is also included in the signature
  */
 function createSignature(method: string, path: string, body?: string): string {
-  const timestamp = Math.floor(Date.now() / 1000).toString();
+  // Timestamp in milliseconds (not seconds)
+  const timestamp = Date.now().toString();
+  
+  // Build the message to sign: timestamp + method + path + (body if present)
   const message = `${timestamp}${method.toUpperCase()}${path}${body || ''}`;
   
   // Sign with RSA private key using PSS padding
@@ -32,19 +38,25 @@ function createSignature(method: string, path: string, body?: string): string {
 
 /**
  * Create authenticated headers for Kalshi API requests
+ * Based on official Kalshi API documentation: https://docs.kalshi.com/getting_started/api_keys
  */
 function createAuthHeaders(method: string, path: string, body?: string): Record<string, string> {
-  const timestamp = Math.floor(Date.now() / 1000).toString();
+  // Timestamp in milliseconds
+  const timestamp = Date.now().toString();
   const signature = createSignature(method, path, body);
   
   return {
-    'X-Kalshi-Api-Key': env.KALSHI_API_ID,
-    'X-Kalshi-Timestamp': timestamp,
-    'X-Kalshi-Signature': signature,
+    'KALSHI-ACCESS-KEY': env.KALSHI_API_ID,
+    'KALSHI-ACCESS-TIMESTAMP': timestamp,
+    'KALSHI-ACCESS-SIGNATURE': signature,
     'Content-Type': 'application/json',
   };
 }
 
+/**
+ * Fetch markets from Kalshi API
+ * Reference: https://docs.kalshi.com/reference/get-markets
+ */
 export async function fetchMarkets(): Promise<Market[]> {
   const path = '/markets';
   const response = await fetch(`${KALSHI_API_BASE}${path}`, {
@@ -59,9 +71,8 @@ export async function fetchMarkets(): Promise<Market[]> {
 
   const data = await response.json();
   
-  // Transform Kalshi API response to our Market format
-  // Kalshi returns markets in a different structure
-  const markets = data.markets || data || [];
+  // Kalshi API returns { markets: [...] } structure
+  const markets = data.markets || data.cursor?.markets || [];
   
   return markets.map((market: any) => ({
     market_id: market.ticker || market.market_id || market.id,
@@ -77,8 +88,12 @@ export async function fetchMarkets(): Promise<Market[]> {
   }));
 }
 
-export async function getMarket(marketId: string): Promise<Market> {
-  const path = `/markets/${marketId}`;
+/**
+ * Get a specific market by ticker
+ * Reference: https://docs.kalshi.com/reference/get-market
+ */
+export async function getMarket(ticker: string): Promise<Market> {
+  const path = `/markets/${ticker}`;
   const response = await fetch(`${KALSHI_API_BASE}${path}`, {
     method: 'GET',
     headers: createAuthHeaders('GET', path),
@@ -89,7 +104,8 @@ export async function getMarket(marketId: string): Promise<Market> {
     throw new Error(`Failed to fetch market: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
-  const market = await response.json();
+  const data = await response.json();
+  const market = data.market || data;
   
   return {
     market_id: market.ticker || market.market_id || market.id,
@@ -105,8 +121,12 @@ export async function getMarket(marketId: string): Promise<Market> {
   };
 }
 
-export async function getOrderbook(marketId: string): Promise<Orderbook> {
-  const path = `/markets/${marketId}/orderbook`;
+/**
+ * Get orderbook for a specific market
+ * Reference: https://docs.kalshi.com/reference/get-orderbook
+ */
+export async function getOrderbook(ticker: string): Promise<Orderbook> {
+  const path = `/markets/${ticker}/orderbook`;
   const response = await fetch(`${KALSHI_API_BASE}${path}`, {
     method: 'GET',
     headers: createAuthHeaders('GET', path),
@@ -118,15 +138,16 @@ export async function getOrderbook(marketId: string): Promise<Orderbook> {
   }
 
   const data = await response.json();
+  const orderbook = data.orderbook || data;
   
-  // Kalshi orderbook structure
-  const yesBids = data.yes_bids || data.yesBids || [];
-  const yesAsks = data.yes_asks || data.yesAsks || [];
-  const noBids = data.no_bids || data.noBids || [];
-  const noAsks = data.no_asks || data.noAsks || [];
+  // Kalshi orderbook structure: { yes_bids: [{price, size}], yes_asks: [...], no_bids: [...], no_asks: [...] }
+  const yesBids = orderbook.yes_bids || orderbook.yesBids || [];
+  const yesAsks = orderbook.yes_asks || orderbook.yesAsks || [];
+  const noBids = orderbook.no_bids || orderbook.noBids || [];
+  const noAsks = orderbook.no_asks || orderbook.noAsks || [];
   
   return {
-    market_id: marketId,
+    market_id: ticker,
     bestYesBid: yesBids.length > 0 ? parseFloat(yesBids[0].price || yesBids[0]) / 100 : 0,
     bestYesAsk: yesAsks.length > 0 ? parseFloat(yesAsks[0].price || yesAsks[0]) / 100 : 0,
     bestNoBid: noBids.length > 0 ? parseFloat(noBids[0].price || noBids[0]) / 100 : 0,
@@ -134,6 +155,10 @@ export async function getOrderbook(marketId: string): Promise<Orderbook> {
   };
 }
 
+/**
+ * Place an order on Kalshi
+ * Reference: https://docs.kalshi.com/reference/post-portfolio-orders
+ */
 export async function placeOrder(order: {
   market: string;
   side: 'YES' | 'NO' | 'SELL_YES' | 'SELL_NO';
@@ -142,7 +167,7 @@ export async function placeOrder(order: {
 }): Promise<any> {
   if (process.env.DRY_RUN === 'true') {
     console.log('🧪 DRY RUN: Would place order:', order);
-    return { id: 'dry-run-order', status: 'filled' };
+    return { order_id: 'dry-run-order', status: 'resting' };
   }
 
   const path = '/portfolio/orders';
@@ -151,14 +176,17 @@ export async function placeOrder(order: {
   const side = order.side === 'YES' || order.side === 'SELL_YES' ? 'yes' : 'no';
   const action = order.side.startsWith('SELL') ? 'sell' : 'buy';
   
-  // Kalshi uses price in cents (0-100), quantity in contracts
+  // Kalshi uses price in cents (0-100), count in contracts
+  // Price should be integer between 1-99 (cents)
+  const orderPrice = Math.max(1, Math.min(99, Math.floor(order.price * 100)));
+  
   const body = JSON.stringify({
     ticker: order.market,
     side: side,
     action: action,
     count: Math.floor(order.amount), // Number of contracts
-    price: Math.floor(order.price * 100), // Convert to cents (0-100)
-    type: 'limit', // or 'market'
+    price: orderPrice, // Price in cents (1-99)
+    type: 'limit', // 'limit' or 'market'
   });
 
   const response = await fetch(`${KALSHI_API_BASE}${path}`, {
@@ -172,5 +200,6 @@ export async function placeOrder(order: {
     throw new Error(`Failed to place order: ${response.status} ${response.statusText} - ${error}`);
   }
 
-  return await response.json();
+  const data = await response.json();
+  return data.order || data;
 }
