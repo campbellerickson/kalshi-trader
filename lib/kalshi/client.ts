@@ -78,11 +78,142 @@ function createAuthHeaders(method: string, path: string, body?: string): Record<
 }
 
 /**
- * Fetch markets from Kalshi API
- * Reference: https://docs.kalshi.com/reference/get-markets
+ * Extract yes bid price in cents from market data
+ * Handles field migration: checks yes_bid (integer cents) first, then yes_bid_dollars (float)
+ * Works both before and after January 15, 2026
  */
-export async function fetchMarkets(): Promise<Market[]> {
-  const path = '/markets';
+function extractYesBidCents(market: any): number | null {
+  // Primary: yes_bid as integer cents (pre-Jan 15, 2026 and post-migration)
+  if (typeof market.yes_bid === 'number') {
+    return Math.round(market.yes_bid);
+  }
+  
+  // Fallback: yes_bid_dollars as float (post-Jan 15, 2026 migration)
+  if (typeof market.yes_bid_dollars === 'number') {
+    return Math.round(market.yes_bid_dollars * 100);
+  }
+  
+  // Legacy fallbacks (try camelCase variants)
+  if (typeof market.yesBid === 'number') {
+    return Math.round(market.yesBid);
+  }
+  
+  if (typeof market.yesBidDollars === 'number') {
+    return Math.round(market.yesBidDollars * 100);
+  }
+  
+  // If price is already normalized (0-1 range), convert to cents
+  if (typeof market.yes_odds === 'number' && market.yes_odds > 0 && market.yes_odds <= 1) {
+    return Math.round(market.yes_odds * 100);
+  }
+  
+  return null;
+}
+
+/**
+ * Fetch all active markets with cursor-based pagination
+ * Uses Filter-then-Fetch approach: gets all markets first, then enriches with orderbook
+ */
+export async function fetchAllMarkets(): Promise<Market[]> {
+  const allMarkets: any[] = [];
+  let cursor: string | null = null;
+  let pageCount = 0;
+  const maxPages = 100; // Safety limit
+
+  console.log('🔍 Fetching all active markets from Kalshi (with pagination)...');
+
+  do {
+    pageCount++;
+    if (pageCount > maxPages) {
+      console.warn(`⚠️ Reached max pages limit (${maxPages}). Stopping pagination.`);
+      break;
+    }
+
+    // Build path with cursor if available
+    let path = '/markets?status=open';
+    if (cursor) {
+      path += `&cursor=${cursor}`;
+    }
+
+    try {
+      const response = await fetch(`${KALSHI_API_BASE}${path}`, {
+        method: 'GET',
+        headers: createAuthHeaders('GET', path),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Kalshi API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      
+      // Kalshi API returns { markets: [...], cursor: "..." } structure
+      const markets = data.markets || [];
+      allMarkets.push(...markets);
+      
+      // Get next cursor for pagination
+      cursor = data.cursor || null;
+      
+      console.log(`   Page ${pageCount}: Fetched ${markets.length} markets (total: ${allMarkets.length})`);
+      
+      // If no cursor or empty markets, we're done
+      if (!cursor || markets.length === 0) {
+        break;
+      }
+    } catch (error: any) {
+      console.error(`Error fetching markets page ${pageCount}:`, error.message);
+      throw error;
+    }
+  } while (cursor);
+
+  console.log(`✅ Fetched ${allMarkets.length} total markets across ${pageCount} pages`);
+
+  // Convert raw market data to Market format
+  return allMarkets.map((market: any) => {
+    const yesBidCents = extractYesBidCents(market);
+    const yesOdds = yesBidCents !== null ? yesBidCents / 100 : 0;
+    const noOdds = yesBidCents !== null ? (100 - yesBidCents) / 100 : 0;
+
+    // Parse expiration time (ISO 8601)
+    let endDate: Date;
+    try {
+      endDate = new Date(market.expiration_time || market.expirationTime || market.end_date);
+      if (isNaN(endDate.getTime())) {
+        console.warn(`Invalid expiration date for market ${market.ticker}: ${market.expiration_time}`);
+        endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Default to 7 days from now
+      }
+    } catch (e) {
+      endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    }
+
+    return {
+      market_id: market.ticker || market.market_id || market.id,
+      question: market.title || market.question || market.subtitle || 'N/A',
+      end_date: endDate,
+      yes_odds: yesOdds,
+      no_odds: noOdds,
+      liquidity: 0, // Will be enriched from orderbook
+      volume_24h: parseFloat(market.volume || market.volume_24h || 0),
+      resolved: market.status === 'closed' || market.status === 'resolved' || false,
+      category: market.category || undefined,
+      outcome: market.result ? (market.result === 'yes' ? 'YES' : 'NO') : undefined,
+      final_odds: market.result_price ? parseFloat(market.result_price) / 100 : undefined,
+      resolved_at: market.settlement_time ? new Date(market.settlement_time) : undefined,
+    };
+  });
+}
+
+/**
+ * Get orderbook for a specific market with liquidity information
+ * Returns liquidity as number of contracts available at best price
+ */
+export async function getOrderbookWithLiquidity(ticker: string): Promise<{
+  orderbook: Orderbook;
+  liquidity: number; // Contracts available at best price
+  side: 'YES' | 'NO'; // Which side we'd be buying
+}> {
+  const path = `/markets/${ticker}/orderbook`;
   const response = await fetch(`${KALSHI_API_BASE}${path}`, {
     method: 'GET',
     headers: createAuthHeaders('GET', path),
@@ -90,49 +221,88 @@ export async function fetchMarkets(): Promise<Market[]> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Kalshi API error: ${response.status} ${response.statusText} - ${errorText}`);
+    throw new Error(`Failed to fetch orderbook: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
   const data = await response.json();
+  const orderbook = data.orderbook || data;
   
-  // Kalshi API returns { markets: [...] } structure
-  const markets = data.markets || data.cursor?.markets || [];
+  // Kalshi orderbook structure: { yes_bids: [{price, size}], yes_asks: [...], no_bids: [...], no_asks: [...] }
+  const yesBids = orderbook.yes_bids || orderbook.yesBids || [];
+  const yesAsks = orderbook.yes_asks || orderbook.yesAsks || [];
+  const noBids = orderbook.no_bids || orderbook.noBids || [];
+  const noAsks = orderbook.no_asks || orderbook.noAsks || [];
   
-  // Debug: Log first market structure to understand API response format
-  if (markets.length > 0) {
-    console.log('Sample Kalshi market structure (first market):', JSON.stringify(markets[0], null, 2));
-    console.log('Total markets fetched:', markets.length);
+  // Extract best prices and sizes
+  const bestYesBid = yesBids.length > 0 ? {
+    price: parseFloat(yesBids[0].price || yesBids[0].price_cents || yesBids[0]) / 100,
+    size: parseInt(yesBids[0].size || yesBids[0].quantity || '0', 10),
+  } : { price: 0, size: 0 };
+
+  const bestYesAsk = yesAsks.length > 0 ? {
+    price: parseFloat(yesAsks[0].price || yesAsks[0].price_cents || yesAsks[0]) / 100,
+    size: parseInt(yesAsks[0].size || yesAsks[0].quantity || '0', 10),
+  } : { price: 0, size: 0 };
+
+  const bestNoBid = noBids.length > 0 ? {
+    price: parseFloat(noBids[0].price || noBids[0].price_cents || noBids[0]) / 100,
+    size: parseInt(noBids[0].size || noBids[0].quantity || '0', 10),
+  } : { price: 0, size: 0 };
+
+  const bestNoAsk = noAsks.length > 0 ? {
+    price: parseFloat(noAsks[0].price || noAsks[0].price_cents || noAsks[0]) / 100,
+    size: parseInt(noAsks[0].size || noAsks[0].quantity || '0', 10),
+  } : { price: 0, size: 0 };
+
+  // Determine which side we'd be buying based on price
+  // If yes price > 85 cents, we buy YES (use yes bids for liquidity)
+  // If yes price < 15 cents, we effectively buy NO (use no bids for liquidity)
+  const yesPriceCents = bestYesBid.price * 100;
+  let liquidity: number;
+  let side: 'YES' | 'NO';
+
+  if (yesPriceCents >= 85) {
+    // High probability YES - we'd buy YES contracts
+    liquidity = bestYesBid.size;
+    side = 'YES';
+  } else if (yesPriceCents <= 15) {
+    // Low probability YES (high NO) - we'd buy NO contracts
+    liquidity = bestNoBid.size;
+    side = 'NO';
+  } else {
+    // Middle range (16-84%) - not in our filter range, but return yes liquidity as default
+    liquidity = bestYesBid.size;
+    side = 'YES';
   }
-  
-  return markets.map((market: any) => {
-    // Try multiple possible field names for yes bid/price
-    // Kalshi uses price in cents (0-100), so we need to divide by 100
-    const yesPrice = market.yes_bid || market.yesBid || market.yes_price || market.yesPrice || 
-                     market.yes_odds || market.yesOdds || 
-                     (market.last_price ? market.last_price / 100 : null) ||
-                     (market.current_price ? market.current_price / 100 : null);
-    const yesOdds = yesPrice ? parseFloat(yesPrice) / 100 : 0;
-    
-    const noPrice = market.no_bid || market.noBid || market.no_price || market.noPrice || 
-                    market.no_odds || market.noOdds ||
-                    (yesPrice ? 100 - parseFloat(yesPrice) : null);
-    const noOdds = noPrice ? parseFloat(noPrice) / 100 : (yesOdds > 0 ? 1 - yesOdds : 0);
-    
-    return {
-      market_id: market.ticker || market.market_id || market.id,
-      question: market.title || market.question || market.subtitle,
-      end_date: new Date(market.expiration_time || market.expirationTime || market.end_date),
-      yes_odds: yesOdds,
-      no_odds: noOdds,
-      liquidity: parseFloat(market.liquidity || market.open_interest || market.volume || 
-                           market.total_volume || market.daily_volume || market.volume_24h || 0),
-      volume_24h: parseFloat(market.volume || market.volume_24h || 0),
-      resolved: market.status === 'closed' || market.status === 'resolved' || false,
-      outcome: market.result ? (market.result === 'yes' ? 'YES' : 'NO') : undefined,
-      final_odds: market.result_price ? parseFloat(market.result_price) / 100 : undefined,
-      resolved_at: market.settlement_time ? new Date(market.settlement_time) : undefined,
-    };
-  });
+
+  return {
+    orderbook: {
+      market_id: ticker,
+      bestYesBid: bestYesBid.price,
+      bestYesAsk: bestYesAsk.price,
+      bestNoBid: bestNoBid.price,
+      bestNoAsk: bestNoAsk.price,
+    },
+    liquidity,
+    side,
+  };
+}
+
+/**
+ * Calculate days to resolution from expiration time
+ */
+export function calculateDaysToResolution(expirationTime: Date): number {
+  const now = new Date();
+  const diffMs = expirationTime.getTime() - now.getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  return Math.max(0, diffDays); // Don't return negative days
+}
+
+/**
+ * Fetch markets (backward compatibility - uses new fetchAllMarkets)
+ */
+export async function fetchMarkets(): Promise<Market[]> {
+  return fetchAllMarkets();
 }
 
 /**
@@ -154,8 +324,9 @@ export async function getMarket(ticker: string): Promise<Market> {
   const data = await response.json();
   const market = data.market || data;
   
-  const yesOdds = parseFloat(market.yes_bid || market.yesBid || market.yes_odds || 0) / 100;
-  const noOdds = parseFloat(market.no_bid || market.noBid || market.no_odds || (100 - parseFloat(market.yes_bid || market.yesBid || market.yes_odds || 0))) / 100;
+  const yesBidCents = extractYesBidCents(market);
+  const yesOdds = yesBidCents !== null ? yesBidCents / 100 : 0;
+  const noOdds = yesBidCents !== null ? (100 - yesBidCents) / 100 : 0;
   
   return {
     market_id: market.ticker || market.market_id || market.id,
@@ -166,6 +337,7 @@ export async function getMarket(ticker: string): Promise<Market> {
     liquidity: parseFloat(market.liquidity || market.open_interest || 0),
     volume_24h: parseFloat(market.volume || market.volume_24h || 0),
     resolved: market.status === 'closed' || market.status === 'resolved' || false,
+    category: market.category || undefined,
     outcome: market.result ? (market.result === 'yes' ? 'YES' : 'NO') : undefined,
     final_odds: market.result_price ? parseFloat(market.result_price) / 100 : undefined,
     resolved_at: market.settlement_time ? new Date(market.settlement_time) : undefined,
@@ -173,37 +345,11 @@ export async function getMarket(ticker: string): Promise<Market> {
 }
 
 /**
- * Get orderbook for a specific market
- * Reference: https://docs.kalshi.com/reference/get-orderbook
+ * Get orderbook for a specific market (backward compatibility)
  */
 export async function getOrderbook(ticker: string): Promise<Orderbook> {
-  const path = `/markets/${ticker}/orderbook`;
-  const response = await fetch(`${KALSHI_API_BASE}${path}`, {
-    method: 'GET',
-    headers: createAuthHeaders('GET', path),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to fetch orderbook: ${response.status} ${response.statusText} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  const orderbook = data.orderbook || data;
-  
-  // Kalshi orderbook structure: { yes_bids: [{price, size}], yes_asks: [...], no_bids: [...], no_asks: [...] }
-  const yesBids = orderbook.yes_bids || orderbook.yesBids || [];
-  const yesAsks = orderbook.yes_asks || orderbook.yesAsks || [];
-  const noBids = orderbook.no_bids || orderbook.noBids || [];
-  const noAsks = orderbook.no_asks || orderbook.noAsks || [];
-  
-  return {
-    market_id: ticker,
-    bestYesBid: yesBids.length > 0 ? parseFloat(yesBids[0].price || yesBids[0]) / 100 : 0,
-    bestYesAsk: yesAsks.length > 0 ? parseFloat(yesAsks[0].price || yesAsks[0]) / 100 : 0,
-    bestNoBid: noBids.length > 0 ? parseFloat(noBids[0].price || noBids[0]) / 100 : 0,
-    bestNoAsk: noAsks.length > 0 ? parseFloat(noAsks[0].price || noAsks[0]) / 100 : 0,
-  };
+  const { orderbook } = await getOrderbookWithLiquidity(ticker);
+  return orderbook;
 }
 
 /**

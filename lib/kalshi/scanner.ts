@@ -1,7 +1,12 @@
-import { fetchMarkets } from './client';
-import { Contract, ScanCriteria } from '../../types';
+import { fetchAllMarkets, getOrderbookWithLiquidity, calculateDaysToResolution } from './client';
+import { Contract, ScanCriteria, Market } from '../../types';
 import { TRADING_CONSTANTS } from '../../config/constants';
 
+/**
+ * Filter-then-Fetch approach for efficient market scanning:
+ * 1. Scan all markets and filter for high-conviction (yes price >85¢ or <15¢)
+ * 2. Enrich only those candidates with orderbook data for true liquidity
+ */
 export async function scanContracts(
   criteria: ScanCriteria = {
     minOdds: TRADING_CONSTANTS.MIN_ODDS,
@@ -12,31 +17,32 @@ export async function scanContracts(
     excludeKeywords: TRADING_CONSTANTS.EXCLUDE_KEYWORDS,
   }
 ): Promise<Contract[]> {
-  console.log('🔍 Scanning Kalshi for contracts...');
+  console.log('🔍 Scanning Kalshi for high-conviction contracts...');
   console.log(`   Criteria: ${criteria.minOdds * 100}%-${criteria.maxOdds * 100}% odds, <${criteria.maxDaysToResolution} days, >$${criteria.minLiquidity} liquidity`);
 
-  // Fetch all active markets
-  const markets = await fetchMarkets();
-  console.log(`   Found ${markets.length} total markets`);
+  // STEP 1: Fetch all active markets (with pagination)
+  const allMarkets = await fetchAllMarkets();
+  console.log(`   ✅ Fetched ${allMarkets.length} total markets`);
 
+  // STEP 2: Filter for high-conviction markets
+  // Keep only markets where yes price is >85 cents OR <15 cents
+  // This excludes the middle range (16-84%) where conviction is lower
   const now = new Date();
-  const qualifying: Contract[] = [];
+  const candidates: Market[] = [];
 
-  for (const market of markets) {
+  for (const market of allMarkets) {
+    // Filter by price: yes_odds > 0.85 OR < 0.15
+    // Convert to cents for comparison
+    const yesPriceCents = market.yes_odds * 100;
+    
+    // Skip if outside our high-conviction range
+    if (yesPriceCents < criteria.minOdds * 100 && yesPriceCents > (1 - criteria.maxOdds) * 100) {
+      continue;
+    }
+
     // Filter by resolution date
-    const daysToResolution = (market.end_date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    const daysToResolution = calculateDaysToResolution(market.end_date);
     if (daysToResolution > criteria.maxDaysToResolution || daysToResolution < 0) {
-      continue;
-    }
-
-    // Filter by odds (we want high probability YES contracts)
-    // Use yes_odds for filtering
-    if (market.yes_odds < criteria.minOdds || market.yes_odds > criteria.maxOdds) {
-      continue;
-    }
-
-    // Filter by liquidity
-    if (market.liquidity < criteria.minLiquidity) {
       continue;
     }
 
@@ -58,25 +64,66 @@ export async function scanContracts(
       continue;
     }
 
-    // Convert to Contract format
-    const contract: Contract = {
-      id: '', // Will be set when saved to DB
-      market_id: market.market_id,
-      question: market.question,
-      end_date: market.end_date,
-      current_odds: market.yes_odds, // Use yes_odds for Contract
-      liquidity: market.liquidity,
-      volume_24h: market.volume_24h,
-      discovered_at: new Date(),
-    };
-
-    qualifying.push(contract);
+    candidates.push(market);
   }
 
-  // Sort by volume/liquidity (highest first)
-  qualifying.sort((a, b) => (b.volume_24h || 0) - (a.volume_24h || 0));
+  console.log(`   📊 Found ${candidates.length} high-conviction candidates after filtering`);
 
-  console.log(`   ✅ Found ${qualifying.length} qualifying contracts`);
-  return qualifying;
+  // STEP 3: Enrich candidates with orderbook data for true liquidity
+  // Only fetch orderbook for the filtered candidates (much more efficient)
+  const enrichedContracts: Contract[] = [];
+  const enrichmentErrors: string[] = [];
+
+  for (let i = 0; i < candidates.length; i++) {
+    const market = candidates[i];
+    
+    try {
+      // Fetch orderbook to get true liquidity (contracts available at best price)
+      const { liquidity, side } = await getOrderbookWithLiquidity(market.market_id);
+      
+      // Filter by minimum liquidity (contracts available, not dollar volume)
+      // Convert liquidity (contracts) to approximate dollar value for comparison
+      // Each contract is worth $1 at resolution, so liquidity in contracts ≈ liquidity in dollars
+      if (liquidity < criteria.minLiquidity) {
+        continue;
+      }
+
+      // Convert to Contract format
+      const contract: Contract = {
+        id: '', // Will be set when saved to DB
+        market_id: market.market_id,
+        question: market.question,
+        end_date: market.end_date,
+        current_odds: market.yes_odds,
+        liquidity: liquidity, // True liquidity from orderbook (contracts available)
+        volume_24h: market.volume_24h,
+        category: market.category,
+        discovered_at: new Date(),
+      };
+
+      enrichedContracts.push(contract);
+
+      // Log progress every 10 markets
+      if ((i + 1) % 10 === 0 || (i + 1) === candidates.length) {
+        console.log(`   📈 Enriched ${i + 1}/${candidates.length} candidates... (${enrichedContracts.length} passed liquidity filter)`);
+      }
+    } catch (error: any) {
+      enrichmentErrors.push(`${market.market_id}: ${error.message}`);
+      // Continue with next market even if one fails
+      continue;
+    }
+  }
+
+  if (enrichmentErrors.length > 0) {
+    console.warn(`   ⚠️ ${enrichmentErrors.length} markets failed enrichment (likely resolved or inactive)`);
+    if (enrichmentErrors.length <= 5) {
+      enrichmentErrors.forEach(err => console.warn(`      ${err}`));
+    }
+  }
+
+  // Sort by liquidity (highest first) - true orderbook depth
+  enrichedContracts.sort((a, b) => (b.liquidity || 0) - (a.liquidity || 0));
+
+  console.log(`   ✅ Found ${enrichedContracts.length} qualifying contracts with sufficient liquidity`);
+  return enrichedContracts;
 }
-
