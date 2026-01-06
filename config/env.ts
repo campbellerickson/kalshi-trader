@@ -7,7 +7,10 @@ const envSchema = z.object({
   KALSHI_PRIVATE_KEY: z.string().min(1), // RSA private key in PEM format
   
   // Vercel AI Gateway
-  VERCEL_AI_GATEWAY_KEY: z.string().min(1),
+  // Accept any of the common env var names used by Vercel AI Gateway docs/SDK.
+  VERCEL_AI_GATEWAY_KEY: z.string().min(1).optional(),
+  AI_GATEWAY_API_KEY: z.string().min(1).optional(),
+  VERCEL_OIDC_TOKEN: z.string().min(1).optional(),
   
   // Database
   SUPABASE_URL: z.string().url(),
@@ -30,7 +33,10 @@ const envSchema = z.object({
 });
 
 type ParsedEnv = z.infer<typeof envSchema>;
-export type Env = Omit<ParsedEnv, 'SUPABASE_SERVICE_ROLE_KEY'> & { SUPABASE_KEY: string };
+export type Env = Omit<
+  ParsedEnv,
+  'SUPABASE_SERVICE_ROLE_KEY' | 'AI_GATEWAY_API_KEY' | 'VERCEL_OIDC_TOKEN'
+> & { SUPABASE_KEY: string; VERCEL_AI_GATEWAY_KEY: string };
 
 export function validateEnv(): Env {
   try {
@@ -39,9 +45,16 @@ export function validateEnv(): Env {
     if (!supabaseKey) {
       throw new Error('Missing SUPABASE_KEY (or SUPABASE_SERVICE_ROLE_KEY)');
     }
+
+    const aiGatewayKey =
+      parsed.VERCEL_AI_GATEWAY_KEY || parsed.AI_GATEWAY_API_KEY || parsed.VERCEL_OIDC_TOKEN;
+    if (!aiGatewayKey) {
+      throw new Error('Missing VERCEL_AI_GATEWAY_KEY (or AI_GATEWAY_API_KEY / VERCEL_OIDC_TOKEN)');
+    }
     return {
       ...parsed,
       SUPABASE_KEY: supabaseKey,
+      VERCEL_AI_GATEWAY_KEY: aiGatewayKey,
     };
   } catch (error: any) {
     if (error instanceof z.ZodError) {
