@@ -339,7 +339,7 @@ export default function Dashboard() {
                         </span>
                       </td>
                       <td>{(pos.trade.entry_odds * 100).toFixed(0)}%</td>
-                      <td>{(pos.current_odds * 100).toFixed(0)}%</td>
+                      <td>{(pos.yes_odds * 100).toFixed(0)}%</td>
                       <td className={pos.unrealized_pnl >= 0 ? 'positive' : 'negative'}>
                         {pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)}
                       </td>

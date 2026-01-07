@@ -40,7 +40,8 @@ export default async function handler(
           
           return {
             ...pos,
-            current_odds: currentOdds,
+            yes_odds: currentOdds || 0,
+            no_odds: currentOdds ? (1 - currentOdds) : 0,
             unrealized_pnl: unrealizedPnL,
             unrealized_pnl_pct: unrealizedPnLPct,
           };
@@ -48,7 +49,8 @@ export default async function handler(
           // If we can't fetch market, use entry odds
           return {
             ...pos,
-            current_odds: pos.trade.entry_odds,
+            yes_odds: pos.yes_odds || pos.trade.entry_odds,
+            no_odds: pos.no_odds || (1 - (pos.yes_odds || pos.trade.entry_odds)),
             unrealized_pnl: 0,
             unrealized_pnl_pct: 0,
           };
