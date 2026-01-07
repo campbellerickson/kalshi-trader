@@ -4,6 +4,55 @@ import { extractYesBidCents, getMarketApi } from './client';
 import { MarketApi } from 'kalshi-typescript';
 
 /**
+ * Check if a market has a simple yes/no question (not multiple questions)
+ * Filters out markets with complex criteria like "yes X, yes Y, no Z"
+ */
+function isSimpleYesNoMarket(question: string): boolean {
+  if (!question || question.length === 0) {
+    return false;
+  }
+
+  const questionLower = question.toLowerCase().trim();
+  
+  // Skip if question is too long (likely complex)
+  if (question.length > 200) {
+    return false;
+  }
+  
+  // Count occurrences of "yes" and "no" keywords followed by colons or spaces
+  // Complex markets often have patterns like "yes X: Y, yes Z: W"
+  const yesPattern = /\b(yes|y)\s+[^,]+:/gi;
+  const noPattern = /\b(no|n)\s+[^,]+:/gi;
+  const yesMatches = questionLower.match(yesPattern) || [];
+  const noMatches = questionLower.match(noPattern) || [];
+  
+  // If there are multiple "yes" or "no" clauses, it's likely a complex market
+  if (yesMatches.length > 1 || noMatches.length > 1 || (yesMatches.length + noMatches.length) > 2) {
+    return false;
+  }
+  
+  // Check for multiple comma-separated conditions (common in complex markets)
+  const commaCount = (question.match(/,/g) || []).length;
+  if (commaCount > 2) {
+    // More than 2 commas likely indicates multiple conditions
+    return false;
+  }
+  
+  // Check for patterns like "yes X, yes Y" (multiple yes clauses)
+  if (questionLower.match(/\byes\s+[^,]+,/g) && questionLower.match(/\byes\s+[^,]+,/g)!.length > 1) {
+    return false;
+  }
+  
+  // Check for patterns like "no X, no Y" (multiple no clauses)
+  if (questionLower.match(/\bno\s+[^,]+,/g) && questionLower.match(/\bno\s+[^,]+,/g)!.length > 1) {
+    return false;
+  }
+  
+  // If it passes all checks, it's likely a simple yes/no market
+  return true;
+}
+
+/**
  * Cache market data in database to avoid excessive API calls
  * Markets are refreshed gradually via cron job
  */
@@ -193,6 +242,7 @@ export async function refreshMarketPage(cursor?: string): Promise<{
     const nextCursor = response.data.cursor || null;
 
     // Convert to Market format using the same logic as fetchAllMarkets
+    // Filter out complex markets that don't have simple yes/no questions
     const marketObjects: Market[] = rawMarkets.map((market: any, index: number) => {
       // Debug: Log first market structure to understand SDK format
       if (index === 0) {
@@ -237,9 +287,16 @@ export async function refreshMarketPage(cursor?: string): Promise<{
       // SDK Market: result is an enum ('yes', 'no', null)
       const outcome = market.result === 'yes' ? 'YES' : market.result === 'no' ? 'NO' : undefined;
 
+      const question = market.title || market.question || market.subtitle || market.yes_sub_title || 'N/A';
+      
+      // Only cache simple yes/no markets (exclude complex multi-question markets)
+      if (!isSimpleYesNoMarket(question)) {
+        return null; // Skip this market
+      }
+
       return {
         market_id: market.ticker || market.market_id || market.id,
-        question: market.title || market.question || market.subtitle || market.yes_sub_title || 'N/A',
+        question: question,
         end_date: endDate,
         yes_odds: yesOdds,
         no_odds: noOdds,
@@ -251,7 +308,7 @@ export async function refreshMarketPage(cursor?: string): Promise<{
         final_odds: market.last_price ? parseFloat(market.last_price.toString()) / 100 : undefined,
         resolved_at: market.close_time ? new Date(market.close_time) : undefined,
       };
-    });
+    }).filter((market): market is Market => market !== null); // Remove null values (complex markets)
 
     // Cache the markets
     await cacheMarkets(marketObjects);

@@ -4,6 +4,56 @@ import { Contract, ScanCriteria, Market } from '../../types';
 import { TRADING_CONSTANTS } from '../../config/constants';
 
 /**
+ * Check if a market has a simple yes/no question (not multiple questions)
+ * Filters out markets with complex criteria like "yes X, yes Y, no Z"
+ */
+function isSimpleYesNoMarket(question: string): boolean {
+  if (!question || question.length === 0) {
+    return false;
+  }
+
+  const questionLower = question.toLowerCase().trim();
+  
+  // Skip if question is too long (likely complex)
+  if (question.length > 200) {
+    return false;
+  }
+  
+  // Count occurrences of "yes" and "no" keywords followed by colons or spaces
+  // Complex markets often have patterns like "yes X: Y, yes Z: W"
+  const yesPattern = /\b(yes|y)\s+[^,]+:/gi;
+  const noPattern = /\b(no|n)\s+[^,]+:/gi;
+  const yesMatches = questionLower.match(yesPattern) || [];
+  const noMatches = questionLower.match(noPattern) || [];
+  
+  // If there are multiple "yes" or "no" clauses, it's likely a complex market
+  if (yesMatches.length > 1 || noMatches.length > 1 || (yesMatches.length + noMatches.length) > 2) {
+    return false;
+  }
+  
+  // Check for multiple comma-separated conditions (common in complex markets)
+  // Simple markets usually have one question, complex ones have multiple clauses
+  const commaCount = (question.match(/,/g) || []).length;
+  if (commaCount > 2) {
+    // More than 2 commas likely indicates multiple conditions
+    return false;
+  }
+  
+  // Check for patterns like "yes X, yes Y" (multiple yes clauses)
+  if (questionLower.match(/\byes\s+[^,]+,/g) && questionLower.match(/\byes\s+[^,]+,/g)!.length > 1) {
+    return false;
+  }
+  
+  // Check for patterns like "no X, no Y" (multiple no clauses)
+  if (questionLower.match(/\bno\s+[^,]+,/g) && questionLower.match(/\bno\s+[^,]+,/g)!.length > 1) {
+    return false;
+  }
+  
+  // If it passes all checks, it's likely a simple yes/no market
+  return true;
+}
+
+/**
  * Filter-then-Fetch approach for efficient market scanning:
  * 1. Scan all markets and filter for high-conviction (yes price >85¢ or <15¢)
  * 2. Enrich only those candidates with orderbook data for true liquidity
@@ -77,6 +127,11 @@ export async function scanContracts(
     const excludeKeywords = (criteria.excludeKeywords || []).map(k => k.toLowerCase());
     const hasExcludedKeyword = excludeKeywords.some(keyword => questionLower.includes(keyword));
     if (hasExcludedKeyword) {
+      continue;
+    }
+
+    // Only include simple yes/no markets (exclude complex multi-question markets)
+    if (!isSimpleYesNoMarket(market.question)) {
       continue;
     }
 
