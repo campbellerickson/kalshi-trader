@@ -269,10 +269,11 @@ export async function refreshMarketPage(cursor?: string): Promise<{
     const rawCount = rawMarkets.length;
     console.log(`   📊 Processing ${rawCount} open markets from API...`);
     
-    // Filter to only open markets (double-check, though API already filters)
+    // Filter to only active/open markets
+    // Kalshi uses 'active' status for open markets, not 'open'
     const openMarkets: any[] = rawMarkets.filter((market: any) => {
-      const isOpen = market.status === 'open' || market.status === 'Open' || market.status === 'OPEN';
-      return isOpen;
+      const isActive = market.status === 'active' || market.status === 'open' || market.status === 'Active' || market.status === 'Open' || market.status === 'OPEN';
+      return isActive;
     });
     
     console.log(`   📊 Found ${openMarkets.length} open markets to process...`);
