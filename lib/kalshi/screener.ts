@@ -128,10 +128,11 @@ export class KalshiMarketScreener {
   }
 
   /**
-   * PHASE 1: Bulk Load - Fetch all open markets (1-2 API calls)
+   * PHASE 1: Bulk Load - Fetch ONLY open markets (up to 4,000 markets)
+   * Uses status='open' filter to ensure we only get currently open markets
    */
   private async bulkLoadMarkets(): Promise<any[]> {
-    console.log('📊 Phase 1: Bulk Loading all open markets...');
+    console.log('📊 Phase 1: Bulk Loading ONLY open markets...');
     
     const allMarkets: any[] = [];
     let cursor: string | null = null;
@@ -142,6 +143,7 @@ export class KalshiMarketScreener {
       pageCount++;
       
       try {
+        // Fetch ONLY open markets (status='open' filters out unopened, closed, and settled)
         const response = await this.marketApi.getMarkets(
           100, // limit
           cursor || undefined,
@@ -153,7 +155,7 @@ export class KalshiMarketScreener {
           undefined, // minCloseTs
           undefined, // minSettledTs
           undefined, // maxSettledTs
-          'open', // status
+          'open', // status - ONLY fetch currently open markets
           undefined, // tickers
           undefined, // mveFilter
         );
@@ -219,9 +221,11 @@ export class KalshiMarketScreener {
     
     for (const market of rawMarkets) {
       stats.totalProcessed++;
-      // Skip if not active/open
-      if (market.status !== 'open' && market.status !== 'active') {
+      // Note: All markets from Phase 1 are already filtered to status='open' by the API
+      // Double-check status just in case (though API should have filtered already)
+      if (market.status !== 'open') {
         stats.skippedNotOpen++;
+        console.warn(`   ⚠️ Market ${market.ticker} has unexpected status: ${market.status} (should be 'open')`);
         continue;
       }
       
