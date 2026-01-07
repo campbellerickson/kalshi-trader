@@ -15,24 +15,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .from('contracts')
       .select('*', { count: 'exact', head: true });
     
-    // Count unresolved contracts
-    const { count: unresolvedCount, error: unresolvedError } = await supabase
-      .from('contracts')
-      .select('*', { count: 'exact', head: true })
-      .eq('resolved', false);
+    // Count unresolved contracts (check if resolved column exists)
+    let unresolvedCount: number | null = null;
+    let resolvedCount: number | null = null;
+    let unresolvedError: any = null;
+    let resolvedError: any = null;
     
-    // Count resolved contracts
-    const { count: resolvedCount, error: resolvedError } = await supabase
-      .from('contracts')
-      .select('*', { count: 'exact', head: true })
-      .eq('resolved', true);
+    try {
+      const unresolvedResult = await supabase
+        .from('contracts')
+        .select('*', { count: 'exact', head: true })
+        .eq('resolved', false);
+      unresolvedCount = unresolvedResult.count;
+      unresolvedError = unresolvedResult.error;
+    } catch (e: any) {
+      unresolvedError = { message: e.message };
+    }
     
-    // Get a few sample contracts
-    const { data: samples, error: samplesError } = await supabase
-      .from('contracts')
-      .select('market_id, question, resolved, discovered_at, current_odds')
-      .order('discovered_at', { ascending: false })
-      .limit(5);
+    try {
+      const resolvedResult = await supabase
+        .from('contracts')
+        .select('*', { count: 'exact', head: true })
+        .eq('resolved', true);
+      resolvedCount = resolvedResult.count;
+      resolvedError = resolvedResult.error;
+    } catch (e: any) {
+      resolvedError = { message: e.message };
+    }
+    
+    // Get a few sample contracts (try with resolved, fallback without it)
+    let samples: any[] = [];
+    let samplesError: any = null;
+    
+    try {
+      const result = await supabase
+        .from('contracts')
+        .select('market_id, question, resolved, discovered_at, current_odds')
+        .order('discovered_at', { ascending: false })
+        .limit(5);
+      samples = result.data || [];
+      samplesError = result.error;
+    } catch (e: any) {
+      // If resolved column doesn't exist, try without it
+      try {
+        const result = await supabase
+          .from('contracts')
+          .select('market_id, question, discovered_at, current_odds')
+          .order('discovered_at', { ascending: false })
+          .limit(5);
+        samples = result.data || [];
+        samplesError = result.error;
+      } catch (e2: any) {
+        samplesError = { message: `First error: ${e.message}, Second error: ${e2.message}` };
+      }
+    }
     
     // Get contracts from last 2 hours
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
