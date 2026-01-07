@@ -1,35 +1,35 @@
 {
   "crons": [
     {
-      "path": "/pages/api/cron/morning-report",
+      "path": "/api/cron/morning-report",
       "schedule": "0 7 * * *"
     },
     {
-      "path": "/pages/api/cron/trading",
+      "path": "/api/cron/trading",
       "schedule": "0 8 * * *"
     },
     {
-      "path": "/pages/api/cron/stop-loss",
+      "path": "/api/cron/stop-loss",
       "schedule": "0 */2 * * *"
     },
     {
-      "path": "/pages/api/cron/check-fills",
+      "path": "/api/cron/check-fills",
       "schedule": "0 * * * *"
     },
     {
-      "path": "/pages/api/cron/check-resolutions",
+      "path": "/api/cron/check-resolutions",
       "schedule": "0 */6 * * *"
     },
     {
-      "path": "/pages/api/cron/screen-markets",
+      "path": "/api/cron/screen-markets",
       "schedule": "30 7 * * *"
     },
     {
-      "path": "/pages/api/cron/monthly-analysis",
+      "path": "/api/cron/monthly-analysis",
       "schedule": "0 0 1 * *"
     },
     {
-      "path": "/pages/api/cron/cleanup-resolved",
+      "path": "/api/cron/cleanup-resolved",
       "schedule": "0 2 * * *"
     }
   ],
