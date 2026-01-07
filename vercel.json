@@ -23,6 +23,10 @@
     {
       "path": "/pages/api/cron/monthly-analysis",
       "schedule": "0 0 1 * *"
+    },
+    {
+      "path": "/pages/api/cron/cleanup-resolved",
+      "schedule": "0 2 * * *"
     }
   ],
   "framework": "nextjs",

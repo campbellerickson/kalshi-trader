@@ -105,24 +105,40 @@ export async function cacheMarkets(markets: Market[]): Promise<void> {
 
   // Batch upsert in chunks of 100 (Supabase limit)
   const chunkSize = 100;
+  let totalCached = 0;
+  let errors = 0;
+  
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
     
-    const { error } = await supabase
-      .from('contracts')
-      .upsert(chunk, {
-        onConflict: 'market_id',
-        ignoreDuplicates: false,
-      });
+    try {
+      const { data, error } = await supabase
+        .from('contracts')
+        .upsert(chunk, {
+          onConflict: 'market_id',
+          ignoreDuplicates: false,
+        });
 
-    if (error) {
-      console.error(`Error caching markets chunk ${i / chunkSize + 1}:`, error);
-    } else {
-      console.log(`   ✅ Cached chunk ${i / chunkSize + 1}/${Math.ceil(rows.length / chunkSize)} (${chunk.length} markets)`);
+      if (error) {
+        console.error(`❌ Error caching markets chunk ${i / chunkSize + 1}:`, error);
+        console.error(`   Error details:`, JSON.stringify(error, null, 2));
+        errors++;
+      } else {
+        totalCached += chunk.length;
+        console.log(`   ✅ Cached chunk ${i / chunkSize + 1}/${Math.ceil(rows.length / chunkSize)} (${chunk.length} markets)`);
+      }
+    } catch (err: any) {
+      console.error(`❌ Exception caching markets chunk ${i / chunkSize + 1}:`, err.message);
+      console.error(`   Stack:`, err.stack);
+      errors++;
     }
   }
 
-  console.log(`✅ Cached ${markets.length} markets successfully`);
+  if (errors > 0) {
+    console.warn(`⚠️ Cached ${totalCached}/${markets.length} markets with ${errors} errors`);
+  } else {
+    console.log(`✅ Cached ${totalCached}/${markets.length} markets successfully`);
+  }
 }
 
 /**
