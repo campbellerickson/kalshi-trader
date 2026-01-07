@@ -75,32 +75,46 @@ function getOrdersApi(): OrdersApi {
 
 /**
  * Extract yes bid price in cents from market data
- * Handles field migration: checks yes_bid (integer cents) first, then yes_bid_dollars (float)
+ * Handles SDK Market type: yes_bid (integer cents) and yes_bid_dollars (string)
  * Works both before and after January 15, 2026
  */
 export function extractYesBidCents(market: any): number | null {
-  // Primary: yes_bid as integer cents (pre-Jan 15, 2026 and post-migration)
-  if (typeof market.yes_bid === 'number') {
+  // SDK Market type: yes_bid is in cents (integer)
+  // Primary: yes_bid as integer cents (SDK returns this)
+  if (typeof market.yes_bid === 'number' && market.yes_bid > 0) {
     return Math.round(market.yes_bid);
   }
   
-  // Fallback: yes_bid_dollars as float (post-Jan 15, 2026 migration)
-  if (typeof market.yes_bid_dollars === 'number') {
+  // Fallback: yes_bid_dollars as string (SDK returns this as fixed-point decimal string)
+  if (typeof market.yes_bid_dollars === 'string') {
+    const dollarValue = parseFloat(market.yes_bid_dollars);
+    if (!isNaN(dollarValue) && dollarValue > 0) {
+      return Math.round(dollarValue * 100);
+    }
+  }
+  
+  // Fallback: yes_bid_dollars as number (if SDK returns it as number)
+  if (typeof market.yes_bid_dollars === 'number' && market.yes_bid_dollars > 0) {
     return Math.round(market.yes_bid_dollars * 100);
   }
   
   // Legacy fallbacks (try camelCase variants)
-  if (typeof market.yesBid === 'number') {
+  if (typeof market.yesBid === 'number' && market.yesBid > 0) {
     return Math.round(market.yesBid);
   }
   
-  if (typeof market.yesBidDollars === 'number') {
+  if (typeof market.yesBidDollars === 'number' && market.yesBidDollars > 0) {
     return Math.round(market.yesBidDollars * 100);
   }
   
   // If price is already normalized (0-1 range), convert to cents
   if (typeof market.yes_odds === 'number' && market.yes_odds > 0 && market.yes_odds <= 1) {
     return Math.round(market.yes_odds * 100);
+  }
+  
+  // Last resort: try last_price (current market price)
+  if (typeof market.last_price === 'number' && market.last_price > 0) {
+    return Math.round(market.last_price);
   }
   
   return null;
@@ -202,34 +216,43 @@ export async function fetchAllMarkets(options?: {
   // Convert raw market data to Market format
   return allMarkets.map((market: any) => {
     const yesBidCents = extractYesBidCents(market);
+    // SDK Market: yes_bid is in cents (0-100), convert to 0-1 range for yes_odds
     const yesOdds = yesBidCents !== null ? yesBidCents / 100 : 0;
     const noOdds = yesBidCents !== null ? (100 - yesBidCents) / 100 : 0;
 
     // Parse expiration time (ISO 8601)
+    // SDK Market: uses expected_expiration_time, expiration_time, or close_time
     let endDate: Date;
     try {
-      endDate = new Date(market.expiration_time || market.expirationTime || market.end_date);
+      const expirationTime = market.expected_expiration_time || market.expiration_time || market.expirationTime || market.close_time || market.end_date;
+      endDate = new Date(expirationTime);
       if (isNaN(endDate.getTime())) {
-        console.warn(`Invalid expiration date for market ${market.ticker}: ${market.expiration_time}`);
+        console.warn(`Invalid expiration date for market ${market.ticker}: ${expirationTime}`);
         endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Default to 7 days from now
       }
     } catch (e) {
       endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     }
 
+    // SDK Market: status is an enum ('unopened', 'open', 'closed', 'settled')
+    const resolved = market.status === 'closed' || market.status === 'settled' || market.status === 'resolved' || false;
+    
+    // SDK Market: result is an enum ('yes', 'no', null)
+    const outcome = market.result === 'yes' ? 'YES' : market.result === 'no' ? 'NO' : undefined;
+
     return {
       market_id: market.ticker || market.market_id || market.id,
-      question: market.title || market.question || market.subtitle || 'N/A',
+      question: market.title || market.question || market.subtitle || market.yes_sub_title || 'N/A',
       end_date: endDate,
       yes_odds: yesOdds,
       no_odds: noOdds,
       liquidity: 0, // Will be enriched from orderbook
-      volume_24h: parseFloat(market.volume || market.volume_24h || 0),
-      resolved: market.status === 'closed' || market.status === 'resolved' || false,
-      category: market.category || undefined,
-      outcome: market.result ? (market.result === 'yes' ? 'YES' : 'NO') : undefined,
-      final_odds: market.result_price ? parseFloat(market.result_price) / 100 : undefined,
-      resolved_at: market.settlement_time ? new Date(market.settlement_time) : undefined,
+      volume_24h: parseFloat(market.volume_24h || market.volume || 0),
+      resolved: resolved,
+      category: market.category || market.event_ticker || undefined,
+      outcome: outcome,
+      final_odds: market.last_price ? parseFloat(market.last_price.toString()) / 100 : undefined,
+      resolved_at: market.close_time ? new Date(market.close_time) : undefined,
     };
   });
 }
@@ -345,19 +368,29 @@ export async function getMarket(ticker: string): Promise<Market> {
     const yesOdds = yesBidCents !== null ? yesBidCents / 100 : 0;
     const noOdds = yesBidCents !== null ? (100 - yesBidCents) / 100 : 0;
     
+    // SDK Market: uses expected_expiration_time, expiration_time, or close_time
+    const expirationTime = market.expected_expiration_time || market.expiration_time || market.expirationTime || market.close_time || market.end_date;
+    const endDate = new Date(expirationTime);
+    
+    // SDK Market: status is an enum ('unopened', 'open', 'closed', 'settled')
+    const resolved = market.status === 'closed' || market.status === 'settled' || market.status === 'resolved' || false;
+    
+    // SDK Market: result is an enum ('yes', 'no', null)
+    const outcome = market.result === 'yes' ? 'YES' : market.result === 'no' ? 'NO' : undefined;
+
     return {
       market_id: market.ticker || market.market_id || market.id,
-      question: market.title || market.question || market.subtitle,
-      end_date: new Date(market.expiration_time || market.expirationTime || market.end_date),
+      question: market.title || market.question || market.subtitle || market.yes_sub_title || 'N/A',
+      end_date: endDate,
       yes_odds: yesOdds,
       no_odds: noOdds,
-      liquidity: parseFloat(market.liquidity || market.open_interest || 0),
-      volume_24h: parseFloat(market.volume || market.volume_24h || 0),
-      resolved: market.status === 'closed' || market.status === 'resolved' || false,
-      category: market.category || undefined,
-      outcome: market.result ? (market.result === 'yes' ? 'YES' : 'NO') : undefined,
-      final_odds: market.result_price ? parseFloat(market.result_price) / 100 : undefined,
-      resolved_at: market.settlement_time ? new Date(market.settlement_time) : undefined,
+      liquidity: parseFloat(market.open_interest || market.liquidity || 0),
+      volume_24h: parseFloat(market.volume_24h || market.volume || 0),
+      resolved: resolved,
+      category: market.category || market.event_ticker || undefined,
+      outcome: outcome,
+      final_odds: market.last_price ? parseFloat(market.last_price.toString()) / 100 : undefined,
+      resolved_at: market.close_time ? new Date(market.close_time) : undefined,
     };
   } catch (error: any) {
     const errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error';

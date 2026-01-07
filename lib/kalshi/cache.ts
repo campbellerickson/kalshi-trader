@@ -133,12 +133,15 @@ export async function refreshMarketPage(cursor?: string): Promise<{
     // Convert to Market format using the same logic as fetchAllMarkets
     const marketObjects: Market[] = rawMarkets.map((market: any) => {
       const yesBidCents = extractYesBidCents(market);
+      // SDK Market: yes_bid is in cents (0-100), convert to 0-1 range for yes_odds
       const yesOdds = yesBidCents !== null ? yesBidCents / 100 : 0;
       const noOdds = yesBidCents !== null ? (100 - yesBidCents) / 100 : 0;
 
+      // SDK Market: uses expected_expiration_time, expiration_time, or close_time
       let endDate: Date;
       try {
-        endDate = new Date(market.expiration_time || market.expirationTime || market.end_date);
+        const expirationTime = market.expected_expiration_time || market.expiration_time || market.expirationTime || market.close_time || market.end_date;
+        endDate = new Date(expirationTime);
         if (isNaN(endDate.getTime())) {
           endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         }
@@ -146,19 +149,25 @@ export async function refreshMarketPage(cursor?: string): Promise<{
         endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       }
 
+      // SDK Market: status is an enum ('unopened', 'open', 'closed', 'settled')
+      const resolved = market.status === 'closed' || market.status === 'settled' || market.status === 'resolved' || false;
+      
+      // SDK Market: result is an enum ('yes', 'no', null)
+      const outcome = market.result === 'yes' ? 'YES' : market.result === 'no' ? 'NO' : undefined;
+
       return {
         market_id: market.ticker || market.market_id || market.id,
-        question: market.title || market.question || market.subtitle || 'N/A',
+        question: market.title || market.question || market.subtitle || market.yes_sub_title || 'N/A',
         end_date: endDate,
         yes_odds: yesOdds,
         no_odds: noOdds,
         liquidity: 0,
-        volume_24h: parseFloat(market.volume || market.volume_24h || 0),
-        resolved: market.status === 'closed' || market.status === 'resolved' || false,
-        category: market.category || undefined,
-        outcome: market.result ? (market.result === 'yes' ? 'YES' : 'NO') : undefined,
-        final_odds: market.result_price ? parseFloat(market.result_price) / 100 : undefined,
-        resolved_at: market.settlement_time ? new Date(market.settlement_time) : undefined,
+        volume_24h: parseFloat(market.volume_24h || market.volume || 0),
+        resolved: resolved,
+        category: market.category || market.event_ticker || undefined,
+        outcome: outcome,
+        final_odds: market.last_price ? parseFloat(market.last_price.toString()) / 100 : undefined,
+        resolved_at: market.close_time ? new Date(market.close_time) : undefined,
       };
     });
 
