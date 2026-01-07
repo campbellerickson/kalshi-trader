@@ -468,3 +468,44 @@ a {
   font-size: 0.875rem;
   margin-top: 0.5rem;
 }
+
+/* Cottonwood Investments Branding */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  font-size: 36px;
+  line-height: 1;
+}
+
+.brand-text h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.brand-text .subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin: 2px 0 0 0;
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .brand-text h1 {
+    font-size: 20px;
+  }
+
+  .brand-text .subtitle {
+    font-size: 12px;
+  }
+
+  .logo {
+    font-size: 28px;
+  }
+}

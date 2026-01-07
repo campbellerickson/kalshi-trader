@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
+import BottomNav from '../components/BottomNav';
 
 interface DashboardData {
   currentBankroll: number;
@@ -95,25 +95,24 @@ export default function Dashboard() {
   return (
     <>
       <Head>
-        <title>Kalshi Trader Dashboard</title>
-        <meta name="description" content="Kalshi automated trading system dashboard" />
+        <title>Cottonwood Investments - Dashboard</title>
+        <meta name="description" content="AI-powered prediction market trading" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
       <div className="header">
         <div className="container">
-          <nav className="nav">
-            <h1>Kalshi Trader</h1>
-            <div className="nav-links">
-              <Link href="/" className="active">Dashboard</Link>
-              <Link href="/logs">Logs</Link>
-              <Link href="/docs">Docs</Link>
+          <div className="brand">
+            <div className="logo">🌲</div>
+            <div className="brand-text">
+              <h1>Cottonwood Investments</h1>
+              <p className="subtitle">AI-Powered Prediction Markets</p>
             </div>
-          </nav>
+          </div>
         </div>
       </div>
 
-      <div className="container">
+      <div className="container" style={{ paddingBottom: '100px' }}>
         <h1 className="section-title">Performance Dashboard</h1>
 
         {/* Current Bankroll Card */}
@@ -351,6 +350,8 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      <BottomNav />
     </>
   );
 }
