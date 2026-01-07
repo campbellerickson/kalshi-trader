@@ -96,17 +96,22 @@ function calculateLiquidityScore(
   spreadCents: number,
   minVolume: number,
   minOpenInterest: number,
-  maxSpread: number
+  maxSpread?: number // Optional - if not provided, spread is not considered
 ): number {
-  // Volume score (0-40 points)
-  const volumeScore = Math.min(40, (volume24h / minVolume) * 40);
+  // Volume score (0-50 points if no spread, otherwise 0-40)
+  const volumePoints = maxSpread !== undefined ? 40 : 50;
+  const volumeScore = Math.min(volumePoints, (volume24h / minVolume) * volumePoints);
   
-  // Open interest score (0-30 points)
-  const openInterestScore = Math.min(30, (openInterest / minOpenInterest) * 30);
+  // Open interest score (0-50 points if no spread, otherwise 0-30)
+  const openInterestPoints = maxSpread !== undefined ? 30 : 50;
+  const openInterestScore = Math.min(openInterestPoints, (openInterest / minOpenInterest) * openInterestPoints);
   
-  // Spread score (0-30 points) - tighter spread = higher score
-  const spreadNormalized = Math.min(1, spreadCents / maxSpread);
-  const spreadScore = (1 - spreadNormalized) * 30;
+  // Spread score (0-20 points) - only if maxSpread is provided
+  let spreadScore = 0;
+  if (maxSpread !== undefined && maxSpread > 0) {
+    const spreadNormalized = Math.min(1, spreadCents / maxSpread);
+    spreadScore = (1 - spreadNormalized) * 20;
+  }
   
   return volumeScore + openInterestScore + spreadScore;
 }
@@ -131,7 +136,7 @@ export class KalshiMarketScreener {
     const allMarkets: any[] = [];
     let cursor: string | null = null;
     let pageCount = 0;
-    const maxPages = 10; // Safety limit (1000 markets max)
+    const maxPages = 40; // Get up to 4,000 markets (40 pages * 100 markets per page)
     
     do {
       pageCount++;
@@ -188,11 +193,11 @@ export class KalshiMarketScreener {
   ): ScreenedMarket[] {
     console.log('🔍 Phase 2: Basic Filtering (in-memory)...');
     
-    const minVolume = criteria.minVolume24h || 5000;
+    const minVolume = criteria.minVolume24h || 2000;
     const minOpenInterest = criteria.minOpenInterest || 2000;
-    const maxSpread = criteria.maxSpreadCents || 6;
+    const maxSpread = criteria.maxSpreadCents; // Optional - undefined means no spread filter
     const minOdds = criteria.minOdds || TRADING_CONSTANTS.MIN_ODDS;
-    const maxDays = criteria.maxDaysToResolution || TRADING_CONSTANTS.MAX_DAYS_TO_RESOLUTION;
+    const maxDays = criteria.maxDaysToResolution || 3;
     
     const filtered: ScreenedMarket[] = [];
     const now = new Date();
@@ -260,9 +265,9 @@ export class KalshiMarketScreener {
         continue;
       }
       
-      // Calculate spread
+      // Calculate spread (only filter if maxSpread is provided)
       const spreadCents = calculateSpreadCents(market);
-      if (spreadCents > maxSpread) {
+      if (maxSpread !== undefined && spreadCents > maxSpread) {
         continue;
       }
       
@@ -290,7 +295,7 @@ export class KalshiMarketScreener {
         spreadCents,
         minVolume,
         minOpenInterest,
-        maxSpread
+        maxSpread // Optional - undefined means spread not considered
       );
       
       // Add to filtered list

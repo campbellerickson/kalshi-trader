@@ -17,13 +17,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     // Configure screening criteria
     const criteria: MarketCriteria = {
-      minVolume24h: Number(req.query.minVolume24h) || 5000,
+      minVolume24h: Number(req.query.minVolume24h) || 2000,
       minOpenInterest: Number(req.query.minOpenInterest) || 2000,
-      maxSpreadCents: Number(req.query.maxSpreadCents) || 6,
+      maxSpreadCents: req.query.maxSpreadCents ? Number(req.query.maxSpreadCents) : undefined, // No spread filter by default
       orderSize: Number(req.query.orderSize) || 100,
       topNForDepthCheck: Number(req.query.topNForDepthCheck) || 40,
-      minOdds: Number(req.query.minOdds) || TRADING_CONSTANTS.MIN_ODDS,
-      maxDaysToResolution: Number(req.query.maxDaysToResolution) || TRADING_CONSTANTS.MAX_DAYS_TO_RESOLUTION,
+      minOdds: Number(req.query.minOdds) || TRADING_CONSTANTS.MIN_ODDS, // 0.85
+      maxDaysToResolution: Number(req.query.maxDaysToResolution) || 3, // 3 days
     };
     
     console.log('   Criteria:', criteria);
