@@ -29,7 +29,8 @@ export async function generateDailyReport(): Promise<DailyReportData> {
       
       openPositions.push({
         ...pos,
-        current_odds: currentOdds,
+        yes_odds: currentOdds || pos.yes_odds,
+        no_odds: currentOdds ? (1 - currentOdds) : pos.no_odds || (1 - pos.yes_odds),
         unrealized_pnl: unrealizedPnL,
         unrealized_pnl_pct: unrealizedPnLPct,
       });
