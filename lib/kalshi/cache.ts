@@ -261,12 +261,17 @@ export async function refreshMarketPage(cursor?: string): Promise<{
       
       const yesBidCents = extractYesBidCents(market);
       // SDK Market: yes_bid is in cents (0-100), convert to 0-1 range for yes_odds
-      const yesOdds = yesBidCents !== null ? yesBidCents / 100 : 0;
-      const noOdds = yesBidCents !== null ? (100 - yesBidCents) / 100 : 0;
+      const yesOdds = yesBidCents !== null && yesBidCents > 0 ? yesBidCents / 100 : 0;
+      const noOdds = yesBidCents !== null && yesBidCents > 0 ? (100 - yesBidCents) / 100 : 0;
       
-      // Debug: Log if odds are 0
-      if (index === 0 && yesOdds === 0) {
-        console.warn('   ⚠️ First market has 0 odds - check extractYesBidCents function');
+      // Skip markets with 0 odds (likely inactive or not yet priced)
+      if (yesOdds === 0 && noOdds === 0) {
+        return null; // Skip this market
+      }
+      
+      // Debug: Log first market structure
+      if (index === 0) {
+        console.log(`   ✅ First market odds: yes=${(yesOdds * 100).toFixed(1)}%, no=${(noOdds * 100).toFixed(1)}%`);
       }
 
       // SDK Market: uses expected_expiration_time, expiration_time, or close_time
