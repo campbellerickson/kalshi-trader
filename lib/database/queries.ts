@@ -123,10 +123,11 @@ export async function updateTrade(
 export async function getOpenPositions(): Promise<Position[]> {
   const trades = await getOpenTrades();
   // This would need market data to calculate current odds
-  // For now, return basic structure
+  // For now, return basic structure using entry_odds
   return trades.map(trade => ({
     trade,
-    current_odds: trade.entry_odds, // Placeholder
+    yes_odds: trade.entry_odds, // Use entry odds as placeholder for current yes odds
+    no_odds: 1 - trade.entry_odds, // Calculate no odds from yes odds
     unrealized_pnl: 0,
     unrealized_pnl_pct: 0,
   }));
