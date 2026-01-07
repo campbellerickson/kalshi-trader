@@ -2,6 +2,7 @@ import { getOrderbookWithLiquidity, calculateDaysToResolution } from './client';
 import { getCachedMarkets } from './cache';
 import { Contract, ScanCriteria, Market } from '../../types';
 import { TRADING_CONSTANTS } from '../../config/constants';
+import { supabase } from '../database/client';
 
 /**
  * Check if a market has a simple yes/no question (not multiple questions)
@@ -53,10 +54,27 @@ export async function scanContracts(
   // This avoids hitting rate limits by fetching all markets at once
   const allMarkets = await getCachedMarkets();
   console.log(`   ✅ Retrieved ${allMarkets.length} markets from cache`);
-  
+
   if (allMarkets.length === 0) {
     console.warn('⚠️ No cached markets found. Market refresh cron may not have run yet.');
     return [];
+  }
+
+  // STEP 1.5: Get markets where we already have open positions
+  // This prevents double-betting on the same market
+  const { data: openTrades } = await supabase
+    .from('trades')
+    .select('contract_id, contract:contracts(market_id)')
+    .eq('status', 'open');
+
+  const openMarketIds = new Set(
+    (openTrades || [])
+      .map((t: any) => t.contract?.market_id)
+      .filter(Boolean)
+  );
+
+  if (openMarketIds.size > 0) {
+    console.log(`   🔒 Excluding ${openMarketIds.size} markets with existing open positions`);
   }
 
   // STEP 2: Filter for high-conviction markets
@@ -66,10 +84,15 @@ export async function scanContracts(
   const candidates: Market[] = [];
 
   for (const market of allMarkets) {
+    // Skip markets where we already have an open position
+    if (openMarketIds.has(market.market_id)) {
+      continue;
+    }
+
     // Skip markets with invalid/zero odds for both yes and no
     const hasValidYesOdds = market.yes_odds && market.yes_odds > 0 && market.yes_odds !== null;
     const hasValidNoOdds = market.no_odds && market.no_odds > 0 && market.no_odds !== null;
-    
+
     if (!hasValidYesOdds && !hasValidNoOdds) {
       continue;
     }
