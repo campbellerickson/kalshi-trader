@@ -88,21 +88,30 @@ export async function scanContracts(
   const candidates: Market[] = [];
 
   for (const market of allMarkets) {
-    // Skip markets with invalid/zero odds (likely resolved or inactive)
-    if (!market.yes_odds || market.yes_odds === 0 || market.yes_odds === null) {
+    // Skip markets with invalid/zero odds for both yes and no
+    const hasValidYesOdds = market.yes_odds && market.yes_odds > 0 && market.yes_odds !== null;
+    const hasValidNoOdds = market.no_odds && market.no_odds > 0 && market.no_odds !== null;
+    
+    if (!hasValidYesOdds && !hasValidNoOdds) {
       continue;
     }
 
-    // Filter by price: yes_odds > 0.85 OR < 0.15
-    // Convert to cents for comparison
-    const yesPriceCents = market.yes_odds * 100;
+    // Filter by price: check both yes_odds AND no_odds
+    // High conviction means:
+    // - yes_odds >= minOdds (e.g., 85%) - we'd buy YES
+    // - OR no_odds >= minOdds (e.g., 85%) - we'd buy NO
+    const yesPricePercent = (market.yes_odds || 0) * 100;
+    const noPricePercent = (market.no_odds || (1 - (market.yes_odds || 0))) * 100;
     
-    // Skip if outside our high-conviction range
-    // High conviction means: yes_odds >= minOdds (e.g., 85%) OR yes_odds <= (1 - maxOdds) (e.g., 2%)
-    const isHighYes = yesPriceCents >= criteria.minOdds * 100; // >= 85%
-    const isHighNo = yesPriceCents <= (1 - criteria.maxOdds) * 100; // <= 2% (100% - 98%)
+    const isHighYes = yesPricePercent >= criteria.minOdds * 100; // >= 85% (or minOdds%)
+    const isHighNo = noPricePercent >= criteria.minOdds * 100; // >= 85% (or minOdds%)
     
-    if (!isHighYes && !isHighNo) {
+    // Also check for very low odds (high confidence in opposite direction)
+    const isVeryLowYes = yesPricePercent <= (1 - criteria.maxOdds) * 100; // <= 2% (100% - 98%)
+    const isVeryLowNo = noPricePercent <= (1 - criteria.maxOdds) * 100; // <= 2%
+    
+    // Keep if either side has high conviction
+    if (!isHighYes && !isHighNo && !isVeryLowYes && !isVeryLowNo) {
       continue;
     }
 

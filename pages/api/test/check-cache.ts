@@ -48,11 +48,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let samplesError: any = null;
     
     try {
-      const result = await supabase
-        .from('contracts')
-        .select('market_id, question, resolved, discovered_at, current_odds')
-        .order('discovered_at', { ascending: false })
-        .limit(5);
+        const result = await supabase
+          .from('contracts')
+          .select('market_id, question, resolved, discovered_at, yes_odds, no_odds, current_odds')
+          .order('discovered_at', { ascending: false })
+          .limit(5);
       samples = result.data || [];
       samplesError = result.error;
     } catch (e: any) {
@@ -60,7 +60,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const result = await supabase
           .from('contracts')
-          .select('market_id, question, discovered_at, current_odds')
+          .select('market_id, question, discovered_at, yes_odds, no_odds, current_odds')
           .order('discovered_at', { ascending: false })
           .limit(5);
         samples = result.data || [];

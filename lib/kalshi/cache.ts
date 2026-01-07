@@ -112,12 +112,21 @@ export async function getCachedMarkets(): Promise<Market[]> {
   console.log(`✅ Found ${data.length} cached markets`);
 
   // Convert DB format to Market format
-  return data.map((row: any) => ({
-    market_id: row.market_id,
-    question: row.question,
-    end_date: new Date(row.end_date),
-    yes_odds: parseFloat(row.current_odds.toString()),
-    no_odds: 1 - parseFloat(row.current_odds.toString()),
+  return data.map((row: any) => {
+    // Handle both old format (current_odds) and new format (yes_odds, no_odds)
+    const yesOdds = row.yes_odds !== undefined 
+      ? parseFloat(row.yes_odds.toString()) 
+      : (row.current_odds !== undefined ? parseFloat(row.current_odds.toString()) : 0);
+    const noOdds = row.no_odds !== undefined
+      ? parseFloat(row.no_odds.toString())
+      : (1 - yesOdds);
+    
+    return {
+      market_id: row.market_id,
+      question: row.question,
+      end_date: new Date(row.end_date),
+      yes_odds: yesOdds,
+      no_odds: noOdds,
     liquidity: parseFloat(row.liquidity?.toString() || '0'),
     volume_24h: parseFloat(row.volume_24h?.toString() || '0'),
     resolved: row.resolved || false,
@@ -125,7 +134,8 @@ export async function getCachedMarkets(): Promise<Market[]> {
     outcome: row.outcome || undefined,
     final_odds: row.final_odds ? parseFloat(row.final_odds.toString()) : undefined,
     resolved_at: row.resolved_at ? new Date(row.resolved_at) : undefined,
-  }));
+    };
+  });
 }
 
 /**
@@ -143,7 +153,8 @@ export async function cacheMarkets(markets: Market[]): Promise<void> {
       market_id: market.market_id,
       question: market.question,
       end_date: market.end_date.toISOString(),
-      current_odds: market.yes_odds,
+      yes_odds: market.yes_odds || 0,
+      no_odds: market.no_odds || (1 - (market.yes_odds || 0)), // Calculate no_odds if not provided
       category: market.category || null,
       liquidity: market.liquidity || 0,
       volume_24h: market.volume_24h || 0,

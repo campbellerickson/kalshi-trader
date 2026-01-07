@@ -217,8 +217,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue;
       }
 
-      // Must have >80% yes odds
-      if (market.yes_odds < MIN_YES_ODDS) {
+      // Must have >60% yes odds OR >60% no odds
+      const yesOdds = market.yes_odds || 0;
+      const noOdds = market.no_odds || (1 - yesOdds);
+      
+      const hasHighYesOdds = yesOdds >= MIN_YES_ODDS;
+      const hasHighNoOdds = noOdds >= MIN_YES_ODDS;
+      
+      if (!hasHighYesOdds && !hasHighNoOdds) {
         continue;
       }
 
