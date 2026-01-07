@@ -241,7 +241,7 @@ export function formatReportForEmail(data: DailyReportData): string {
         <div class="trade-item">
           <strong>${p.trade.contract.question}</strong><br/>
           Entry: $${p.trade.position_size.toFixed(2)} @ ${(p.trade.entry_odds * 100).toFixed(1)}%
-          • Current: ${(p.current_odds * 100).toFixed(1)}%<br/>
+          • Current Yes: ${(p.yes_odds * 100).toFixed(1)}%, No: ${((p.no_odds || (1 - p.yes_odds)) * 100).toFixed(1)}%<br/>
           Unrealized P&L: <span style="color: ${unrealizedPnL >= 0 ? '#10b981' : '#ef4444'};">
             ${unrealizedPnL >= 0 ? '+' : ''}$${unrealizedPnL.toFixed(2)} (${unrealizedPct >= 0 ? '+' : ''}${unrealizedPct.toFixed(1)}%)
           </span><br/>
