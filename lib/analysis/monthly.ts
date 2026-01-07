@@ -329,6 +329,11 @@ export async function getMonthlyAnalysis(year: number, month: number): Promise<M
     if (error.code === 'PGRST116') {
       return null; // Not found
     }
+    // Handle missing table gracefully
+    if (error.code === 'PGRST205' || error.message?.includes('not found')) {
+      console.warn('⚠️ monthly_analysis table not found. Run migrations.');
+      return null;
+    }
     throw error;
   }
   
@@ -360,7 +365,14 @@ export async function getAllMonthlyAnalyses(): Promise<MonthlyAnalysis[]> {
     .select('*')
     .order('month_year', { ascending: false });
   
-  if (error) throw error;
+  if (error) {
+    // Handle missing table gracefully
+    if (error.code === 'PGRST205' || error.message?.includes('not found')) {
+      console.warn('⚠️ monthly_analysis table not found. Run migrations.');
+      return [];
+    }
+    throw error;
+  }
   
   if (!data) return [];
   

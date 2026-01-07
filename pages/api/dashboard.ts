@@ -76,16 +76,33 @@ export default async function handler(
     const recentTrades = allTrades.slice(0, 20);
     
     // Get monthly analyses (last 3 months)
-    const monthlyAnalyses = await getAllMonthlyAnalyses();
-    const recentMonthlyAnalyses = monthlyAnalyses.slice(0, 3);
+    // Handle missing table gracefully
+    let monthlyAnalyses: any[] = [];
+    let recentMonthlyAnalyses: any[] = [];
+    let lastMonthAnalysis: any = null;
     
-    // Get current month analysis if available
-    const currentMonth = new Date().getMonth() + 1;
-    const currentYear = new Date().getFullYear();
-    const lastMonthAnalysis = await getMonthlyAnalysis(
-      currentMonth === 1 ? currentYear - 1 : currentYear,
-      currentMonth === 1 ? 12 : currentMonth - 1
-    );
+    try {
+      monthlyAnalyses = await getAllMonthlyAnalyses();
+      recentMonthlyAnalyses = monthlyAnalyses.slice(0, 3);
+      
+      // Get current month analysis if available
+      const currentMonth = new Date().getMonth() + 1;
+      const currentYear = new Date().getFullYear();
+      lastMonthAnalysis = await getMonthlyAnalysis(
+        currentMonth === 1 ? currentYear - 1 : currentYear,
+        currentMonth === 1 ? 12 : currentMonth - 1
+      );
+    } catch (error: any) {
+      // Table doesn't exist yet - migrations haven't run
+      if (error.code === 'PGRST205' || error.message?.includes('monthly_analysis')) {
+        console.warn('⚠️ monthly_analysis table not found. Run migrations in Supabase.');
+        monthlyAnalyses = [];
+        recentMonthlyAnalyses = [];
+        lastMonthAnalysis = null;
+      } else {
+        throw error; // Re-throw other errors
+      }
+    }
     
     return res.status(200).json({
       currentBankroll,
