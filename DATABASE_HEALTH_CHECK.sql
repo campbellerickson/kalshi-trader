@@ -21,7 +21,7 @@ DECLARE
         'error_logs',
         'monthly_analysis'
     ];
-    table_name TEXT;
+    tbl_name TEXT;
 BEGIN
     RAISE NOTICE '========================================';
     RAISE NOTICE 'Database Health Check';
@@ -29,18 +29,18 @@ BEGIN
     RAISE NOTICE '';
     
     -- Check each required table
-    FOREACH table_name IN ARRAY required_tables
+    FOREACH tbl_name IN ARRAY required_tables
     LOOP
         SELECT COUNT(*) INTO table_count
         FROM information_schema.tables t
         WHERE t.table_schema = 'public'
-        AND t.table_name = table_name;
+        AND t.table_name = tbl_name;
         
         IF table_count = 0 THEN
-            missing_tables := array_append(missing_tables, table_name);
-            RAISE NOTICE '❌ Missing table: %', table_name;
+            missing_tables := array_append(missing_tables, tbl_name);
+            RAISE NOTICE '❌ Missing table: %', tbl_name;
         ELSE
-            RAISE NOTICE '✅ Table exists: %', table_name;
+            RAISE NOTICE '✅ Table exists: %', tbl_name;
         END IF;
     END LOOP;
     
