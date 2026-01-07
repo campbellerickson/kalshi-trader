@@ -314,11 +314,19 @@ export async function refreshMarketPage(cursor?: string): Promise<{
         }
         
         // Skip markets with no pricing at all
+        // But note: if no_bid_dollars = 1.0, that means 100% no odds (high conviction!)
         if (yesOdds === 0 && noOdds === 0) {
           if (index < 5) {
             console.log(`   ⚠️ Market ${index + 1} has no bid pricing: ${market.ticker}`);
           }
           continue;
+        }
+        
+        // Debug: Log markets with high conviction (either side >85%)
+        if (yesOdds >= 0.85 || noOdds >= 0.85) {
+          if (index < 5) {
+            console.log(`   ✅ High conviction market ${index + 1}: ${market.ticker} - yes=${(yesOdds*100).toFixed(1)}%, no=${(noOdds*100).toFixed(1)}%`);
+          }
         }
 
         // PARSE DATES & METADATA
