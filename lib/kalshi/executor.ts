@@ -103,7 +103,7 @@ export async function executeTrades(
         contract_id: contractDbId,
         entry_odds: entryOdds,
         position_size: decision.allocation,
-        side: 'YES',
+        side, // Use dynamic side (YES if >50%, NO if <50%)
         contracts_purchased: contracts,
         ai_confidence: decision.confidence,
         ai_reasoning: decision.reasoning,
