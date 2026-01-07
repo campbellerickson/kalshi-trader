@@ -16,21 +16,51 @@ const MARKET_CACHE_TTL_HOURS = 2; // Consider cache stale after 2 hours
 export async function getCachedMarkets(): Promise<Market[]> {
   const cutoffTime = new Date(Date.now() - MARKET_CACHE_TTL_HOURS * 60 * 60 * 1000);
   
-  const { data, error } = await supabase
+  // First try: Get markets within TTL that are not resolved
+  let { data, error } = await supabase
     .from('contracts')
     .select('*')
     .gte('discovered_at', cutoffTime.toISOString())
     .eq('resolved', false)
-    .order('discovered_at', { ascending: false });
+    .order('discovered_at', { ascending: false })
+    .limit(500); // Limit to avoid huge queries
 
   if (error) {
     console.error('Error fetching cached markets:', error);
     return [];
   }
 
+  // If no results with resolved=false filter, try without the resolved filter
+  // (markets might be cached but not yet marked as resolved)
   if (!data || data.length === 0) {
+    console.log('⚠️ No unresolved markets found in cache. Trying with resolved filter removed...');
+    
+    const { data: allData, error: allError } = await supabase
+      .from('contracts')
+      .select('*')
+      .gte('discovered_at', cutoffTime.toISOString())
+      .order('discovered_at', { ascending: false })
+      .limit(500);
+    
+    if (allError) {
+      console.error('Error fetching all cached markets:', allError);
+      return [];
+    }
+    
+    if (allData && allData.length > 0) {
+      console.log(`   Found ${allData.length} cached markets (some may be resolved)`);
+      // Filter out resolved markets manually
+      data = allData.filter(row => !row.resolved || row.resolved === false);
+      console.log(`   After filtering resolved: ${data.length} markets`);
+    }
+  }
+
+  if (!data || data.length === 0) {
+    console.log(`⚠️ No cached markets found (checked within last ${MARKET_CACHE_TTL_HOURS} hours)`);
     return [];
   }
+  
+  console.log(`✅ Found ${data.length} cached markets`);
 
   // Convert DB format to Market format
   return data.map((row: any) => ({
@@ -150,7 +180,8 @@ export async function refreshMarketPage(cursor?: string): Promise<{
       }
 
       // SDK Market: status is an enum ('unopened', 'open', 'closed', 'settled')
-      const resolved = market.status === 'closed' || market.status === 'settled' || market.status === 'resolved' || false;
+      // Only mark as resolved if status is 'closed' or 'settled' (not just 'open')
+      const resolved = market.status === 'closed' || market.status === 'settled';
       
       // SDK Market: result is an enum ('yes', 'no', null)
       const outcome = market.result === 'yes' ? 'YES' : market.result === 'no' ? 'NO' : undefined;
