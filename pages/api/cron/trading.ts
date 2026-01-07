@@ -72,19 +72,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const successfulTrades = recentTrades.filter(t => t.status !== 'cancelled');
 
       if (successfulTrades.length === 0) {
-        console.log(`⚠️ AI selected 0 contracts, but no SUCCESSFUL trades in 2 days (${recentTrades.length - successfulTrades.length} were cancelled). Forcing 1 trade...`);
+        console.log(`⚠️ AI selected 0 contracts, but no SUCCESSFUL trades in 2 days (${recentTrades.length - successfulTrades.length} were cancelled). Forcing trades with backups...`);
 
-        // Force AI to pick the best contract
-        const bestContract = contracts[0]; // Contracts are already sorted by quality
-        analysis.selectedContracts = [{
-          contract: bestContract,
+        // Force top 3 contracts as backup options (in case first ones fail)
+        const topContracts = contracts.slice(0, Math.min(3, contracts.length));
+        analysis.selectedContracts = topContracts.map(contract => ({
+          contract,
           allocation: TRADING_CONSTANTS.DAILY_BUDGET,
           confidence: 0.75,
           reasoning: 'FORCED: Minimum 1 successful trade every 2 days requirement',
           riskFactors: ['Forced trade due to 2-day rule - previous orders were cancelled'],
-        }];
+        }));
         analysis.totalAllocated = TRADING_CONSTANTS.DAILY_BUDGET;
-        console.log(`   Forced selection: ${bestContract.question}`);
+        console.log(`   Forced ${topContracts.length} contracts (will execute first successful one):`);
+        topContracts.forEach((c, i) => console.log(`     ${i + 1}. ${c.question.substring(0, 60)}...`));
       } else {
         console.log(`✅ AI selected 0 contracts, but we had ${successfulTrades.length} successful trades in last 2 days. Skipping.`);
       }
