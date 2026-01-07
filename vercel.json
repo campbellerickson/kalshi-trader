@@ -31,6 +31,10 @@
     {
       "path": "/api/cron/cleanup-resolved",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/sync-orders",
+      "schedule": "0 10,16 * * *"
     }
   ],
   "framework": "nextjs",

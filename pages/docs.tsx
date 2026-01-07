@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import BottomNav from '../components/BottomNav';
 
 export default function DocsPage() {
   const [content, setContent] = useState<string>('');
@@ -63,18 +64,17 @@ export default function DocsPage() {
   return (
     <>
       <Head>
-        <title>System Documentation - Kalshi Trader</title>
+        <title>System Documentation - Cottonwood Investments</title>
       </Head>
       <div className="header">
         <div className="container">
-          <nav className="nav">
-            <h1>Kalshi Trader</h1>
-            <div className="nav-links">
-              <Link href="/">Dashboard</Link>
-              <Link href="/logs">Logs</Link>
-              <Link href="/docs" className="active">Docs</Link>
+          <div className="brand">
+            <div className="logo">🌲</div>
+            <div className="brand-text">
+              <h1>Cottonwood Investments</h1>
+              <p className="subtitle">System Documentation</p>
             </div>
-          </nav>
+          </div>
         </div>
       </div>
 
@@ -100,7 +100,7 @@ export default function DocsPage() {
         .docs-container {
           max-width: 1200px;
           margin: 0 auto;
-          padding: 0 2rem 2rem;
+          padding: 0 2rem 100px;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
           line-height: 1.6;
           color: #333;
@@ -234,6 +234,8 @@ export default function DocsPage() {
           }
         }
       `}</style>
+
+      <BottomNav />
     </>
   );
 }

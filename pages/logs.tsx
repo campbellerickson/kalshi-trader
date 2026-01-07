@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import BottomNav from '../components/BottomNav';
 
 interface LogEntry {
   id: string;
@@ -16,7 +17,7 @@ export default function Logs() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'error' | 'warning'>('all');
+  const [filter, setFilter] = useState<'all' | 'error' | 'warning' | 'buy' | 'resolution'>('all');
 
   useEffect(() => {
     fetch('/api/logs')
@@ -39,31 +40,32 @@ export default function Logs() {
     if (filter === 'all') return true;
     if (filter === 'error') return log.level === 'error';
     if (filter === 'warning') return log.level === 'warning';
+    if (filter === 'buy') return log.message.includes('BUY ALERT') || log.message.includes('Trade executed');
+    if (filter === 'resolution') return log.message.includes('RESOLUTION') || log.message.includes('WON') || log.message.includes('LOST');
     return true;
   });
 
   return (
     <>
       <Head>
-        <title>Error Logs - Kalshi Trader</title>
-        <meta name="description" content="Error logs for Kalshi trading system" />
+        <title>Activity Log - Cottonwood Investments</title>
+        <meta name="description" content="Trading activity and system logs" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
       <div className="header">
         <div className="container">
-          <nav className="nav">
-            <h1>Kalshi Trader</h1>
-            <div className="nav-links">
-              <Link href="/">Dashboard</Link>
-              <Link href="/logs" className="active">Logs</Link>
-              <Link href="/docs">Docs</Link>
+          <div className="brand">
+            <div className="logo">🌲</div>
+            <div className="brand-text">
+              <h1>Cottonwood Investments</h1>
+              <p className="subtitle">Activity Log</p>
             </div>
-          </nav>
+          </div>
         </div>
       </div>
 
-      <div className="container">
+      <div className="container" style={{ paddingBottom: '100px' }}>
         <div style={{ 
           display: 'flex', 
           flexDirection: 'column',
@@ -238,6 +240,8 @@ export default function Logs() {
           </div>
         )}
       </div>
+
+      <BottomNav />
     </>
   );
 }
