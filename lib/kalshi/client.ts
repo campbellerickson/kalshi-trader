@@ -472,29 +472,30 @@ export async function placeOrder(order: {
   // Price should be integer between 1-99 (cents)
   const orderPrice = Math.max(1, Math.min(99, Math.floor(order.price * 100)));
 
-  try {
-    // Use market orders by default for immediate fills
-    const orderType = order.type || 'market';
+  // Use market orders by default for immediate fills
+  const orderType = order.type || 'market';
 
-    // OrdersApi.createOrder takes a CreateOrderRequest object
-    const orderRequest: any = {
-      ticker: order.market,
-      side: side as 'yes' | 'no',
-      action: action as 'buy' | 'sell',
-      count: Math.floor(order.amount), // Number of contracts
-      type: orderType, // 'market' for immediate fills, 'limit' for price control
-    };
+  // OrdersApi.createOrder takes a CreateOrderRequest object
+  // Declare outside try block so it's accessible in catch block
+  const orderRequest: any = {
+    ticker: order.market,
+    side: side as 'yes' | 'no',
+    action: action as 'buy' | 'sell',
+    count: Math.floor(order.amount), // Number of contracts
+    type: orderType, // 'market' for immediate fills, 'limit' for price control
+  };
 
-    // Set price only for limit orders (market orders don't need price)
-    if (orderType === 'limit') {
-      // Set price based on side (yes_price for yes side, no_price for no side)
-      if (side === 'yes') {
-        orderRequest.yes_price = orderPrice; // Price in cents (1-99)
-      } else {
-        orderRequest.no_price = orderPrice; // Price in cents (1-99)
-      }
+  // Set price only for limit orders (market orders don't need price)
+  if (orderType === 'limit') {
+    // Set price based on side (yes_price for yes side, no_price for no side)
+    if (side === 'yes') {
+      orderRequest.yes_price = orderPrice; // Price in cents (1-99)
+    } else {
+      orderRequest.no_price = orderPrice; // Price in cents (1-99)
     }
+  }
 
+  try {
     console.log('   📤 Sending order request:', JSON.stringify(orderRequest, null, 2));
 
     const response = await ordersApi.createOrder(orderRequest);
@@ -502,10 +503,13 @@ export async function placeOrder(order: {
     return (response.data as any).order || response.data;
   } catch (error: any) {
     console.error('   ❌ Order request failed:', JSON.stringify(orderRequest, null, 2));
-    console.error('   ❌ Error response:', JSON.stringify(error.response?.data, null, 2));
-    const errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error';
+    console.error('   ❌ Error response (full):', JSON.stringify(error.response, null, 2));
+    console.error('   ❌ Error data:', JSON.stringify(error.response?.data, null, 2));
+    console.error('   ❌ Error message:', error.message);
+    console.error('   ❌ Error details:', error.response?.data?.error);
+    const errorMessage = error.response?.data?.error || error.response?.data || error.message || 'Unknown error';
     const statusCode = error.response?.status || 500;
-    throw new Error(`Failed to place order: ${statusCode} ${errorMessage}`);
+    throw new Error(`Failed to place order: ${statusCode} ${JSON.stringify(errorMessage)}`);
   }
 }
 
