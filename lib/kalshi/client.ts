@@ -455,6 +455,7 @@ export async function placeOrder(order: {
   side: 'YES' | 'NO' | 'SELL_YES' | 'SELL_NO';
   amount: number;
   price: number;
+  type?: 'limit' | 'market'; // Optional: default to market for immediate fills
 }): Promise<any> {
   if (process.env.DRY_RUN === 'true') {
     console.log('🧪 DRY RUN: Would place order:', order);
@@ -472,21 +473,26 @@ export async function placeOrder(order: {
   const orderPrice = Math.max(1, Math.min(99, Math.floor(order.price * 100)));
 
   try {
+    // Use market orders by default for immediate fills
+    const orderType = order.type || 'market';
+
     // OrdersApi.createOrder takes a CreateOrderRequest object
-    // Use yes_price or no_price depending on side
     const orderRequest: any = {
       ticker: order.market,
       side: side as 'yes' | 'no',
       action: action as 'buy' | 'sell',
       count: Math.floor(order.amount), // Number of contracts
-      type: 'limit', // 'limit' or 'market'
+      type: orderType, // 'market' for immediate fills, 'limit' for price control
     };
 
-    // Set price based on side (yes_price for yes side, no_price for no side)
-    if (side === 'yes') {
-      orderRequest.yes_price = orderPrice; // Price in cents (1-99)
-    } else {
-      orderRequest.no_price = orderPrice; // Price in cents (1-99)
+    // Set price only for limit orders (market orders don't need price)
+    if (orderType === 'limit') {
+      // Set price based on side (yes_price for yes side, no_price for no side)
+      if (side === 'yes') {
+        orderRequest.yes_price = orderPrice; // Price in cents (1-99)
+      } else {
+        orderRequest.no_price = orderPrice; // Price in cents (1-99)
+      }
     }
 
     const response = await ordersApi.createOrder(orderRequest);

@@ -72,29 +72,31 @@ export async function executeTrades(
         ? (orderbook.bestYesAsk || entryOdds)
         : (orderbook.bestNoAsk || (1 - entryOdds));
 
-      console.log(`   Betting ${side} at ${(price * 100).toFixed(1)}% (fading ${side === 'YES' ? 'NO' : 'YES'} tail risk)`);
+      console.log(`   Betting ${side} at ~${(price * 100).toFixed(1)}% (fading ${side === 'YES' ? 'NO' : 'YES'} tail risk)`);
+      console.log(`   Using MARKET order for immediate fill`);
 
-      // 6. Execute market order
+      // 6. Execute market order (immediate fill at best available price)
       const order = await placeOrder({
         market: decision.contract.market_id,
         side,
         amount: contracts,
-        price,
+        price, // Reference price for logging, not used in market orders
+        type: 'market', // Market order for immediate execution
       });
 
       if (TRADING_CONSTANTS.DRY_RUN) {
         console.log('   🧪 DRY RUN: Trade simulated');
       } else {
         console.log(`   ✅ Order placed: ${order.order_id || 'unknown'}`);
-        console.log(`   ⏳ Waiting for order to fill...`);
 
-        // Wait for order to be filled before logging to database
+        // Market orders should fill immediately, but check with short timeout
+        console.log(`   ⏳ Confirming fill...`);
         try {
-          const filledOrder = await waitForOrderFill(order.order_id, 60000, 2000);
-          console.log(`   ✅ Order filled: ${filledOrder.queue_position || 0} contracts`);
+          const filledOrder = await waitForOrderFill(order.order_id, 10000, 1000); // 10s timeout, 1s polling
+          console.log(`   ✅ Order filled immediately (market order)`);
         } catch (fillError: any) {
-          console.error(`   ⚠️ Order fill issue: ${fillError.message}`);
-          // Continue anyway - order might fill later, or we can track as resting
+          console.error(`   ⚠️ Market order fill issue: ${fillError.message}`);
+          // Market orders should fill instantly, so this is unusual
         }
       }
 
