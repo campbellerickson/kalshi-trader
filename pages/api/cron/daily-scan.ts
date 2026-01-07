@@ -89,10 +89,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
   } catch (error: any) {
     console.error('❌ Cron job failed:', error);
+    console.error('   Stack:', error.stack);
+    console.error('   Error details:', JSON.stringify({
+      message: error.message,
+      name: error.name,
+      cause: error.cause,
+    }, null, 2));
+    
     const { logCronError } = await import('../../../lib/utils/logger');
     await logCronError('daily-scan', error, { contracts_analyzed: contracts?.length });
     await sendErrorAlert(error);
-    return res.status(500).json({ error: error.message });
+    
+    // Return detailed error for debugging
+    return res.status(500).json({ 
+      error: error.message,
+      stack: error.stack,
+      details: {
+        message: error.message,
+        name: error.name,
+        cause: error.cause,
+      }
+    });
   }
 }
 
