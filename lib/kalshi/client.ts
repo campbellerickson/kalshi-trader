@@ -287,7 +287,7 @@ export async function getOrderbookWithLiquidity(ticker: string): Promise<{
   try {
     // Use SDK's getMarketOrderbook method
     const response = await marketApi.getMarketOrderbook(ticker);
-    const orderbookData = response.data.orderbook || response.data;
+    const orderbookData: any = response.data.orderbook || response.data;
     
     // Kalshi Orderbook structure: { yes: [[price, size], ...], no: [[price, size], ...] }
     // yes array = YES bids (sorted by price descending, best first)
