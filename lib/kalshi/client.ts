@@ -66,7 +66,7 @@ export function getMarketApi(): MarketApi {
   return marketApiInstance;
 }
 
-function getOrdersApi(): OrdersApi {
+export function getOrdersApi(): OrdersApi {
   if (!ordersApiInstance) {
     ordersApiInstance = new OrdersApi(getKalshiConfig());
   }
