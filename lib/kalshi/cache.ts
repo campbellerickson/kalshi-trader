@@ -264,93 +264,95 @@ export async function refreshMarketPage(cursor?: string): Promise<{
     const rawMarkets = response.data.markets || [];
     const nextCursor = response.data.cursor || null;
 
-    // Convert to Market format using the same logic as fetchAllMarkets
-    // Filter out complex markets that don't have simple yes/no questions
+    // Convert to Market format using robust pricing logic
     const marketObjects = rawMarkets
       .filter((market: any) => {
-        // Only process markets with 'open' status
-        // Skip 'unopened', 'closed', 'settled', etc.
+        // Strict filter for open markets only
         return market.status === 'open' || market.status === 'Open' || market.status === 'OPEN';
       })
       .map((market: any, index: number): Market | null => {
-      // Debug: Log first market structure to understand SDK format
-      if (index < 3) {
-        console.log(`   🔍 Market ${index + 1} from SDK:`, JSON.stringify({
-          ticker: market.ticker,
-          yes_bid: market.yes_bid,
-          yes_bid_dollars: market.yes_bid_dollars,
-          yes_ask: market.yes_ask,
-          yes_ask_dollars: market.yes_ask_dollars,
-          last_price: market.last_price,
-          yes_price: market.yes_price,
-          status: market.status,
-          extractedYesBidCents: extractYesBidCents(market),
-          allKeys: Object.keys(market),
-          priceRelatedKeys: Object.keys(market).filter(k => k.toLowerCase().includes('price') || k.toLowerCase().includes('bid') || k.toLowerCase().includes('ask') || k.toLowerCase().includes('yes')),
-        }, null, 2));
-      }
-      
-      const yesBidCents = extractYesBidCents(market);
-      // SDK Market: yes_bid is in cents (0-100), convert to 0-1 range for yes_odds
-      const yesOdds = yesBidCents !== null && yesBidCents > 0 ? yesBidCents / 100 : 0;
-      const noOdds = yesBidCents !== null && yesBidCents > 0 ? (100 - yesBidCents) / 100 : 0;
-      
-      // Skip markets with 0 odds (likely inactive or not yet priced)
-      // BUT log first few to debug
-      if (yesOdds === 0 && noOdds === 0) {
-        if (index < 3) {
-          console.log(`   ⚠️ Market ${index + 1} has 0 odds - skipping:`, market.ticker, `(extracted: ${extractYesBidCents(market)})`);
-        }
-        return null; // Skip this market
-      }
-      
-      // Debug: Log first market structure
-      if (index === 0) {
-        console.log(`   ✅ First market odds: yes=${(yesOdds * 100).toFixed(1)}%, no=${(noOdds * 100).toFixed(1)}%`);
-      }
+        
+        // 1. ROBUST PRICE EXTRACTION
+        // Check all possible field names due to SDK inconsistencies
+        let bid = market.yes_bid ?? market.yesBid ?? 0;
+        let ask = market.yes_ask ?? market.yesAsk ?? 0;
+        let last = market.last_price ?? market.lastPrice ?? 0;
 
-      // SDK Market: uses expected_expiration_time, expiration_time, or close_time
-      let endDate: Date;
-      try {
-        const expirationTime = market.expected_expiration_time || market.expiration_time || market.expirationTime || market.close_time || market.end_date;
-        endDate = new Date(expirationTime);
-        if (isNaN(endDate.getTime())) {
+        // 2. DETERMINE TRUE MARKET PRICE (YES ODDS)
+        let yesCents = 0;
+
+        if (bid > 0) {
+          // Standard Case: We have a bid (e.g., 85 cents)
+          yesCents = bid;
+        } else if (ask > 0 && ask <= 5) {
+          // Deep No Case: Bid is 0, but Ask is very low (e.g. 3 cents).
+          // This confirms the market is active but priced near 0.
+          yesCents = 0;
+        } else if (last > 0) {
+          // Fallback: Empty order book, use last traded price
+          yesCents = last;
+        }
+
+        const yesOdds = yesCents / 100;
+
+        // 3. CALCULATE NO ODDS
+        let noOdds = 0;
+        if (yesOdds === 0) {
+            // FIX: If Yes is 0% (longshot), No is 100% (favorite).
+            // Previously this was set to 0, causing the market to be deleted.
+            noOdds = 1.0; 
+        } else {
+            noOdds = 1 - yesOdds;
+        }
+
+        // 4. DEAD MARKET FILTER
+        // Only discard if there is absolutely NO data (no bid, no ask, no last price)
+        if (bid === 0 && ask === 0 && last === 0) {
+           // console.log(`Skipping dead market: ${market.ticker}`);
+           return null;
+        }
+
+        // 5. PARSE DATES & METADATA
+        let endDate: Date;
+        try {
+          // SDK uses various fields for expiration
+          const expirationTime = market.expected_expiration_time || market.expiration_time || market.close_time || market.end_date;
+          endDate = new Date(expirationTime);
+          // Default to 7 days if date is invalid
+          if (isNaN(endDate.getTime())) {
+            endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+          }
+        } catch (e) {
           endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         }
-      } catch (e) {
-        endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      }
 
-      // SDK Market: status is an enum ('unopened', 'open', 'closed', 'settled')
-      // Only mark as resolved if status is 'closed' or 'settled' (not just 'open')
-      const resolved = market.status === 'closed' || market.status === 'settled';
-      
-      // SDK Market: result is an enum ('yes', 'no', null)
-      const outcome = market.result === 'yes' ? 'YES' : market.result === 'no' ? 'NO' : undefined;
+        const resolved = market.status === 'closed' || market.status === 'settled';
+        const outcome = market.result === 'yes' ? 'YES' : market.result === 'no' ? 'NO' : undefined;
+        
+        // Handle various title fields
+        const question = market.title || market.question || market.subtitle || 'N/A';
+        
+        // Filter out complex markets
+        if (!isSimpleYesNoMarket(question)) {
+          return null;
+        }
 
-      const question = market.title || market.question || market.subtitle || market.yes_sub_title || 'N/A';
-      
-      // Only cache simple yes/no markets (exclude complex multi-question markets)
-      if (!isSimpleYesNoMarket(question)) {
-        return null; // Skip this market
-      }
-
-      return {
-        market_id: market.ticker || market.market_id || market.id,
-        question: question,
-        end_date: endDate,
-        yes_odds: yesOdds,
-        no_odds: noOdds,
-        liquidity: 0,
-        volume_24h: parseFloat(market.volume_24h || market.volume || 0),
-        resolved: resolved,
-        category: market.category || market.event_ticker || undefined,
-        outcome: outcome,
-        final_odds: market.last_price !== undefined && market.last_price !== null && market.last_price !== '' ? 
-          parseFloat(String(market.last_price)) / 100 : undefined,
-        resolved_at: market.close_time ? new Date(market.close_time) : undefined,
-      };
-    }).filter((market): market is Market => market !== null); // Remove null values (complex markets)
+        return {
+          market_id: market.ticker || market.market_id || market.id,
+          question: question,
+          end_date: endDate,
+          yes_odds: yesOdds,
+          no_odds: noOdds,
+          liquidity: parseFloat(market.liquidity || 0),
+          volume_24h: parseFloat(market.volume_24h || market.volume || 0),
+          resolved: resolved,
+          category: market.category || market.event_ticker || undefined,
+          outcome: outcome,
+          final_odds: market.last_price ? market.last_price / 100 : undefined,
+          resolved_at: market.close_time ? new Date(market.close_time) : undefined,
+        };
+      })
+      .filter((market): market is Market => market !== null);
 
     // Cache the markets
     await cacheMarkets(marketObjects);
