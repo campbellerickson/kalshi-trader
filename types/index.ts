@@ -3,7 +3,8 @@ export interface Contract {
   market_id: string;
   question: string;
   end_date: Date;
-  current_odds: number;
+  yes_odds: number;
+  no_odds?: number;
   category?: string;
   liquidity: number;
   volume_24h: number;
@@ -68,7 +69,8 @@ export interface TradeResult {
 
 export interface Position {
   trade: Trade;
-  current_odds: number;
+  yes_odds: number;
+  no_odds?: number;
   unrealized_pnl: number;
   unrealized_pnl_pct: number;
 }
