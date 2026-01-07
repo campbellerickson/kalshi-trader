@@ -15,6 +15,7 @@ export async function executeTrades(
     try {
       console.log(`   Executing: ${decision.contract.question.substring(0, 50)}...`);
       console.log(`   Allocation: $${decision.allocation}, Confidence: ${(decision.confidence * 100).toFixed(1)}%`);
+      console.log(`   Odds: Yes ${(decision.contract.yes_odds * 100).toFixed(1)}% | No ${(decision.contract.no_odds * 100).toFixed(1)}%`);
 
       // 1. Validate odds
       const entryOdds = decision.contract.yes_odds;
@@ -64,12 +65,21 @@ export async function executeTrades(
         entryOdds
       );
 
-      // 5. Execute market order
+      // 5. Determine which side to buy (always bet the high-probability side)
+      // If yes_odds > 50%, buy YES. If yes_odds < 50% (no_odds > 50%), buy NO.
+      const side = entryOdds > 0.5 ? 'YES' : 'NO';
+      const price = side === 'YES'
+        ? (orderbook.bestYesAsk || entryOdds)
+        : (orderbook.bestNoAsk || (1 - entryOdds));
+
+      console.log(`   Betting ${side} at ${(price * 100).toFixed(1)}% (fading ${side === 'YES' ? 'NO' : 'YES'} tail risk)`);
+
+      // 6. Execute market order
       const order = await placeOrder({
         market: decision.contract.market_id,
-        side: 'YES', // Always buying high side
+        side,
         amount: contracts,
-        price: orderbook.bestYesAsk || entryOdds,
+        price,
       });
 
       if (TRADING_CONSTANTS.DRY_RUN) {
