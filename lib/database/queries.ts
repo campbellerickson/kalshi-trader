@@ -148,6 +148,54 @@ export async function getInitialBankroll(): Promise<number> {
   return Number(process.env.INITIAL_BANKROLL) || 1000;
 }
 
+/**
+ * Save AI decision to database (both selected and rejected contracts)
+ */
+export async function saveAIDecision(decision: {
+  trade_id?: string; // null for rejected contracts
+  contract_snapshot: any; // Full contract data
+  features_analyzed: any; // What factors AI considered
+  decision_factors: any; // Weighted reasoning
+  confidence_score: number;
+  allocated_amount: number; // 0 for rejected
+  risk_factors: string[];
+  reasoning: string; // Why selected or rejected
+  outcome?: 'won' | 'lost' | 'stopped' | null;
+}): Promise<void> {
+  const { error } = await supabase
+    .from('ai_decisions')
+    .insert({
+      trade_id: decision.trade_id || null,
+      contract_snapshot: decision.contract_snapshot,
+      features_analyzed: decision.features_analyzed,
+      decision_factors: decision.decision_factors,
+      confidence_score: decision.confidence_score,
+      allocated_amount: decision.allocated_amount,
+      risk_factors: decision.risk_factors,
+      outcome: decision.outcome || null,
+      created_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    console.error('Error saving AI decision:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get recent AI decisions (including rejections)
+ */
+export async function getRecentAIDecisions(limit: number = 20): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('ai_decisions')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data || [];
+}
+
 export async function getBankrollAt(date: Date): Promise<number> {
   const { data } = await supabase
     .from('performance_metrics')
