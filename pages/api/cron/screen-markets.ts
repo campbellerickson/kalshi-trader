@@ -34,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       minOpenInterest: Number(process.env.MIN_OPEN_INTEREST) || 2000,
       maxSpreadCents: process.env.MAX_SPREAD_CENTS ? Number(process.env.MAX_SPREAD_CENTS) : undefined, // No spread filter by default
       orderSize: Number(process.env.ORDER_SIZE) || 100, // Expected order size in contracts
-      topNForDepthCheck: Number(process.env.TOP_N_FOR_DEPTH_CHECK) || 40, // Check top 40 for orderbook depth
+      topNForDepthCheck: Number(process.env.TOP_N_FOR_DEPTH_CHECK) || 15, // Check top 15 for orderbook depth (reduced from 40 for faster execution)
       minOdds: TRADING_CONSTANTS.MIN_ODDS, // 0.85 (85%)
       maxDaysToResolution: Number(process.env.MAX_DAYS_TO_RESOLUTION) || 3, // 3 days
     };

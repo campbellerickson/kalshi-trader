@@ -422,9 +422,9 @@ export class KalshiMarketScreener {
           validated.push(market);
         }
         
-        // Rate limit: wait 100ms between orderbook checks
+        // Rate limit: wait 50ms between orderbook checks (optimized for speed)
         if (i < topCandidates.length - 1) {
-          await sleep(100);
+          await sleep(50);
         }
       } catch (error: any) {
         // Log error but continue
