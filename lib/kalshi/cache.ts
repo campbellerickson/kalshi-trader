@@ -309,18 +309,27 @@ export async function refreshMarketPage(cursor?: string): Promise<{
         const yesOdds = yesBidDollars;
         const noOdds = noBidDollars;
         
-        // Debug: Log first few markets
-        if (index < 5) {
-          console.log(`   🔍 Market ${index + 1}: ${market.ticker} - yes_bid_dollars=${market.yes_bid_dollars}, no_bid_dollars=${market.no_bid_dollars}, yesOdds=${(yesOdds*100).toFixed(1)}%, noOdds=${(noOdds*100).toFixed(1)}%`);
-        }
-        
         // Skip markets with no pricing at all
-        // But note: if no_bid_dollars = 1.0, that means 100% no odds (high conviction!)
         if (yesOdds === 0 && noOdds === 0) {
           if (index < 5) {
             console.log(`   ⚠️ Market ${index + 1} has no bid pricing: ${market.ticker}`);
           }
           continue;
+        }
+        
+        // Skip markets where either side is at 100% (1.0) - no profit potential
+        // If yes_bid_dollars = 1.0, market is 100% certain YES, no edge
+        // If no_bid_dollars = 1.0, market is 100% certain NO, no edge
+        if (yesOdds >= 0.999 || noOdds >= 0.999) {
+          if (index < 5) {
+            console.log(`   ⚠️ Market ${index + 1} is fully priced (100%): ${market.ticker} - yes=${(yesOdds*100).toFixed(1)}%, no=${(noOdds*100).toFixed(1)}%`);
+          }
+          continue;
+        }
+        
+        // Debug: Log first few markets with valid pricing
+        if (index < 5) {
+          console.log(`   ✅ Market ${index + 1}: ${market.ticker} - yes_bid_dollars=${market.yes_bid_dollars}, no_bid_dollars=${market.no_bid_dollars}, yesOdds=${(yesOdds*100).toFixed(1)}%, noOdds=${(noOdds*100).toFixed(1)}%`);
         }
         
         // Debug: Log markets with high conviction (either side >85%)

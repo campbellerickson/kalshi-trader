@@ -78,8 +78,14 @@ export async function scanContracts(
     // High conviction means:
     // - yes_odds >= minOdds (e.g., 85%) - we'd buy YES
     // - OR no_odds >= minOdds (e.g., 85%) - we'd buy NO
+    // BUT exclude markets at 100% (no profit potential)
     const yesPricePercent = (market.yes_odds || 0) * 100;
     const noPricePercent = (market.no_odds || (1 - (market.yes_odds || 0))) * 100;
+    
+    // Skip markets that are fully priced (100% on either side) - no profit potential
+    if (yesPricePercent >= 99.9 || noPricePercent >= 99.9) {
+      continue;
+    }
     
     const isHighYes = yesPricePercent >= criteria.minOdds * 100; // >= 85% (or minOdds%)
     const isHighNo = noPricePercent >= criteria.minOdds * 100; // >= 85% (or minOdds%)
@@ -88,7 +94,7 @@ export async function scanContracts(
     const isVeryLowYes = yesPricePercent <= (1 - criteria.maxOdds) * 100; // <= 2% (100% - 98%)
     const isVeryLowNo = noPricePercent <= (1 - criteria.maxOdds) * 100; // <= 2%
     
-    // Keep if either side has high conviction
+    // Keep if either side has high conviction (but not 100%)
     if (!isHighYes && !isHighNo && !isVeryLowYes && !isVeryLowNo) {
       continue;
     }
