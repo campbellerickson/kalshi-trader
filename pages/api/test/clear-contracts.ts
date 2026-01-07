@@ -11,11 +11,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('🗑️ Clearing all contracts from database...');
     
     // Delete all contracts
-    const { data, error, count } = await supabase
+    // First get count
+    const { count: totalCount } = await supabase
+      .from('contracts')
+      .select('*', { count: 'exact', head: true });
+    
+    // Then delete all
+    const { error } = await supabase
       .from('contracts')
       .delete()
       .neq('market_id', '') // Delete all (this is a workaround for Supabase delete without WHERE)
-      .select('*', { count: 'exact' });
+      .select();
 
     if (error) {
       // If the above fails, try a different approach
@@ -67,7 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    const deletedCount = count || 0;
+    const deletedCount = totalCount || 0;
     console.log(`✅ Deleted ${deletedCount} contracts`);
 
     return res.status(200).json({
