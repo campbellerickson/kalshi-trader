@@ -4,14 +4,14 @@ import { TRADING_SYSTEM_PROMPT } from './prompts';
 import { buildHistoricalContext } from './learning';
 import { saveAIDecision } from '../database/queries';
 
-// Vercel AI Gateway (OpenAI-compatible API)
-// Docs: https://vercel.com/docs/ai-gateway/openai-compat
-const VERCEL_AI_GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1/chat/completions';
+// OpenAI API
+const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 export async function analyzeContracts(
   request: AnalysisRequest
 ): Promise<AnalysisResponse> {
-  console.log(`🤖 Analyzing ${request.contracts.length} contracts with AI (via Vercel AI Gateway)...`);
+  console.log(`🤖 Analyzing ${request.contracts.length} contracts with AI (GPT-4 Turbo)...`);
 
   if (request.contracts.length === 0) {
     return {
@@ -27,17 +27,17 @@ export async function analyzeContracts(
   // Build prompt
   const prompt = buildAnalysisPrompt(request, historicalContext);
 
-  // Call Vercel AI Gateway
-  const response = await fetch(VERCEL_AI_GATEWAY_URL, {
+  // Call OpenAI API directly
+  const response = await fetch(OPENAI_API_URL, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${env.VERCEL_AI_GATEWAY_KEY}`,
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      // AI Gateway supports model IDs like 'anthropic/claude-sonnet-4'
-      model: 'anthropic/claude-sonnet-4',
+      model: 'gpt-4-turbo-preview', // Use GPT-4 Turbo for best reasoning
       max_tokens: 4000,
+      temperature: 0.7, // Balanced creativity
       messages: [
         { role: 'system', content: TRADING_SYSTEM_PROMPT },
         { role: 'user', content: prompt },
@@ -47,7 +47,7 @@ export async function analyzeContracts(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Vercel AI Gateway error: ${response.status} ${response.statusText} - ${errorText}`);
+    throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
   const data: any = await response.json();
