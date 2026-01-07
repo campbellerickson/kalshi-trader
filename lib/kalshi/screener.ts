@@ -137,7 +137,7 @@ export class KalshiMarketScreener {
     const allMarkets: any[] = [];
     let cursor: string | null = null;
     let pageCount = 0;
-    const maxPages = 40; // Get up to 4,000 markets (40 pages * 100 markets per page)
+    const maxPages = 200; // Fetch as many markets as possible (200 pages * 100 = 20,000 markets max)
     
     do {
       pageCount++;
