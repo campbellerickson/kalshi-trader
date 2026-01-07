@@ -120,8 +120,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       sample: qualifyingContracts.slice(0, 5).map(c => ({
         market_id: c.market_id,
         question: c.question.substring(0, 80),
-        current_odds: c.current_odds,
-        odds_percent: Math.round(c.current_odds * 100),
+        yes_odds: c.yes_odds,
+        no_odds: c.no_odds || (1 - c.yes_odds),
+        odds_percent: Math.round(c.yes_odds * 100),
         liquidity: c.liquidity,
         days_to_resolution: calculateDaysToResolution(c.end_date),
         category: c.category,
@@ -130,8 +131,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Breakdown by criteria
     const breakdownByOdds = {
-      high_yes: qualifyingContracts.filter(c => c.current_odds >= TRADING_CONSTANTS.MIN_ODDS).length,
-      high_no: qualifyingContracts.filter(c => c.current_odds <= (1 - TRADING_CONSTANTS.MAX_ODDS)).length,
+      high_yes: qualifyingContracts.filter(c => c.yes_odds >= TRADING_CONSTANTS.MIN_ODDS).length,
+      high_no: qualifyingContracts.filter(c => (c.no_odds || (1 - c.yes_odds)) >= TRADING_CONSTANTS.MIN_ODDS).length,
     };
 
     const breakdownByDays = {

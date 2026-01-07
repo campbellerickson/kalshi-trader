@@ -61,7 +61,8 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
             market_id: m.market_id,
             question: m.question,
             end_date: m.end_date,
-            current_odds: oddsSnapshot.yes_odds,
+            yes_odds: oddsSnapshot.yes_odds,
+            no_odds: oddsSnapshot.no_odds || (1 - oddsSnapshot.yes_odds),
             liquidity: oddsSnapshot.liquidity,
             volume_24h: oddsSnapshot.volume_24h,
             discovered_at: dayStart,
@@ -70,8 +71,8 @@ export async function runBacktest(config: BacktestConfig): Promise<BacktestResul
         .filter(c => {
           const daysToResolution = (c.end_date.getTime() - dayStart.getTime()) / (1000 * 60 * 60 * 24);
           return (
-            c.current_odds >= config.minOdds &&
-            c.current_odds <= config.maxOdds &&
+            c.yes_odds >= config.minOdds &&
+            c.yes_odds <= config.maxOdds &&
             daysToResolution <= config.maxDaysToResolution &&
             c.liquidity >= config.minLiquidity
           );
@@ -170,7 +171,7 @@ async function simulateAITrades(
     market_id: c.market_id,
     question: c.question,
     entryDate,
-    entryOdds: c.current_odds,
+    entryOdds: c.yes_odds,
     positionSize: allocation,
     contractsPurchased: 0, // Will be calculated
     side: 'YES' as const,
@@ -186,7 +187,7 @@ function simulateSimpleTrades(
   entryDate: Date
 ): BacktestTrade[] {
   const selected = contracts
-    .sort((a, b) => b.current_odds - a.current_odds)
+    .sort((a, b) => b.yes_odds - a.yes_odds)
     .slice(0, Math.min(3, contracts.length));
   
   const allocation = dailyBudget / selected.length;
@@ -195,7 +196,7 @@ function simulateSimpleTrades(
     market_id: c.market_id,
     question: c.question,
     entryDate,
-    entryOdds: c.current_odds,
+    entryOdds: c.yes_odds,
     positionSize: allocation,
     contractsPurchased: 0,
     side: 'YES' as const,
