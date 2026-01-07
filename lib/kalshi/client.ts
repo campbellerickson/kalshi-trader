@@ -462,15 +462,15 @@ export async function placeOrder(order: {
   }
 
   const ordersApi = getOrdersApi();
-  
+
   // Convert side to Kalshi format
   const side = order.side === 'YES' || order.side === 'SELL_YES' ? 'yes' : 'no';
   const action = order.side.startsWith('SELL') ? 'sell' : 'buy';
-  
+
   // Kalshi uses price in cents (0-100), count in contracts
   // Price should be integer between 1-99 (cents)
   const orderPrice = Math.max(1, Math.min(99, Math.floor(order.price * 100)));
-  
+
   try {
     // OrdersApi.createOrder takes a CreateOrderRequest object
     // Use yes_price or no_price depending on side
@@ -481,20 +481,81 @@ export async function placeOrder(order: {
       count: Math.floor(order.amount), // Number of contracts
       type: 'limit', // 'limit' or 'market'
     };
-    
+
     // Set price based on side (yes_price for yes side, no_price for no side)
     if (side === 'yes') {
       orderRequest.yes_price = orderPrice; // Price in cents (1-99)
     } else {
       orderRequest.no_price = orderPrice; // Price in cents (1-99)
     }
-    
+
     const response = await ordersApi.createOrder(orderRequest);
-    
+
     return (response.data as any).order || response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error';
     const statusCode = error.response?.status || 500;
     throw new Error(`Failed to place order: ${statusCode} ${errorMessage}`);
   }
+}
+
+/**
+ * Get order status by order ID
+ */
+export async function getOrderStatus(orderId: string): Promise<any> {
+  if (process.env.DRY_RUN === 'true') {
+    return { order_id: orderId, status: 'filled', remaining_count: 0 };
+  }
+
+  const ordersApi = getOrdersApi();
+
+  try {
+    const response = await ordersApi.getOrder(orderId);
+    return (response.data as any).order || response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error';
+    const statusCode = error.response?.status || 500;
+    throw new Error(`Failed to get order status: ${statusCode} ${errorMessage}`);
+  }
+}
+
+/**
+ * Wait for order to be filled (with timeout)
+ * Polls order status every 2 seconds for up to 60 seconds
+ * Returns the filled order or throws if timeout/cancelled
+ */
+export async function waitForOrderFill(
+  orderId: string,
+  timeoutMs: number = 60000,
+  pollIntervalMs: number = 2000
+): Promise<any> {
+  if (process.env.DRY_RUN === 'true') {
+    console.log('🧪 DRY RUN: Simulating order fill');
+    return { order_id: orderId, status: 'filled', remaining_count: 0 };
+  }
+
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeoutMs) {
+    const orderStatus = await getOrderStatus(orderId);
+
+    console.log(`   Order status: ${orderStatus.status}, remaining: ${orderStatus.remaining_count || 0}`);
+
+    // Order is fully filled
+    if (orderStatus.status === 'filled' || orderStatus.remaining_count === 0) {
+      console.log(`   ✅ Order filled!`);
+      return orderStatus;
+    }
+
+    // Order was cancelled or rejected
+    if (orderStatus.status === 'canceled' || orderStatus.status === 'cancelled') {
+      throw new Error(`Order was cancelled: ${orderStatus.cancel_reason || 'Unknown reason'}`);
+    }
+
+    // Wait before next poll
+    await sleep(pollIntervalMs);
+  }
+
+  // Timeout - order still resting
+  throw new Error(`Order fill timeout after ${timeoutMs}ms. Order may still be resting in orderbook.`);
 }

@@ -1,4 +1,4 @@
-import { placeOrder, getOrderbook } from './client';
+import { placeOrder, getOrderbook, waitForOrderFill } from './client';
 import { AnalysisResponse, TradeResult } from '../../types';
 import { logTrade } from '../database/queries';
 import { calculateContractAmount } from '../utils/kelly';
@@ -76,6 +76,16 @@ export async function executeTrades(
         console.log('   🧪 DRY RUN: Trade simulated');
       } else {
         console.log(`   ✅ Order placed: ${order.order_id || 'unknown'}`);
+        console.log(`   ⏳ Waiting for order to fill...`);
+
+        // Wait for order to be filled before logging to database
+        try {
+          const filledOrder = await waitForOrderFill(order.order_id, 60000, 2000);
+          console.log(`   ✅ Order filled: ${filledOrder.queue_position || 0} contracts`);
+        } catch (fillError: any) {
+          console.error(`   ⚠️ Order fill issue: ${fillError.message}`);
+          // Continue anyway - order might fill later, or we can track as resting
+        }
       }
 
       // 6. Log to database

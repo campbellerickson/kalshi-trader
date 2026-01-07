@@ -128,8 +128,10 @@ Return JSON in this format:
 
 Guidelines:
 - Select 0-3 contracts (only trade when quality is exceptional)
-- Total allocation must be <= $${request.dailyBudget}
-- Minimum $20 per contract, maximum $50 per contract
+- You are the steward of this capital - allocate based on your confidence
+- Daily budget available: $${request.dailyBudget} (you do NOT need to use it all)
+- Allocate what you're comfortable with - more allocation = more confidence
+- Suggested range: $10-50 per contract (but use your judgment)
 - Prioritize LOW VARIANCE over high odds
 - Reject volatile/unpredictable outcomes
 - Favor stable, process-driven markets
@@ -161,7 +163,7 @@ function parseAIResponse(text: string, contracts: Contract[], dailyBudget: numbe
 
       return {
         contract,
-        allocation: Math.min(Math.max(sc.allocation, 20), 50), // Clamp between 20-50
+        allocation: Math.min(Math.max(sc.allocation, 10), 50), // Clamp between 10-50 (AI has flexibility)
         confidence: Math.min(Math.max(sc.confidence, 0), 1), // Clamp between 0-1
         reasoning: sc.reasoning || 'No reasoning provided',
         riskFactors: sc.risk_factors || [],
