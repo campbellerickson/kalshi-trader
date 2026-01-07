@@ -93,8 +93,29 @@ export async function scanContracts(
       continue;
     }
 
-    // Filter by resolution date
-    const daysToResolution = calculateDaysToResolution(market.end_date);
+    // Filter by resolution date - ensure end_date exists and is a Date
+    if (!market.end_date) {
+      continue;
+    }
+    
+    let endDate: Date;
+    try {
+      // Handle both Date objects and string dates from database
+      if (market.end_date instanceof Date) {
+        endDate = market.end_date;
+      } else if (typeof market.end_date === 'string') {
+        endDate = new Date(market.end_date);
+        if (isNaN(endDate.getTime())) {
+          continue; // Invalid date, skip
+        }
+      } else {
+        continue; // Invalid type, skip
+      }
+    } catch (e) {
+      continue; // Error parsing date, skip
+    }
+
+    const daysToResolution = calculateDaysToResolution(endDate);
     if (daysToResolution > criteria.maxDaysToResolution || daysToResolution < 0) {
       continue;
     }
