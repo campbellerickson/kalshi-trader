@@ -1,23 +1,25 @@
-import { getMarket } from './client';
+import { getMarket, getAccountBalance } from './client';
 import { getOpenTrades, updateTrade } from '../database/queries';
 import { Trade } from '../../types';
 import { sendResolutionAlert } from '../utils/notifications';
 
-export async function checkAndResolveOpenTrades(): Promise<void> {
+export async function checkAndResolveOpenTrades(): Promise<{ resolvedCount: number; shouldTriggerTrade: boolean; availableCash: number }> {
   console.log('🔍 Checking for resolved trades...');
-  
+
   const openTrades = await getOpenTrades();
   console.log(`   Found ${openTrades.length} open trades`);
+
+  let resolvedCount = 0;
 
   for (const trade of openTrades) {
     try {
       // Check if market has resolved
       const market = await getMarket(trade.contract.market_id);
-      
+
       if (market.resolved && market.outcome) {
         const won = market.outcome === trade.side;
         const pnl = calculatePnL(trade, market);
-        
+
         // Update trade
         await updateTrade(trade.id, {
           status: won ? 'won' : 'lost',
@@ -27,6 +29,7 @@ export async function checkAndResolveOpenTrades(): Promise<void> {
         });
 
         console.log(`${won ? '✅ WON' : '❌ LOST'}: ${trade.contract.question.substring(0, 50)}... | P&L: $${pnl.toFixed(2)}`);
+        resolvedCount++;
 
         // Send resolution alert
         try {
@@ -48,6 +51,23 @@ export async function checkAndResolveOpenTrades(): Promise<void> {
       console.error(`   ⚠️ Error checking trade ${trade.id}:`, error.message);
     }
   }
+
+  // After resolving trades, check if we should trigger a new trade
+  console.log(`\n💰 Checking available cash after resolutions...`);
+  const availableCash = await getAccountBalance();
+  const shouldTriggerTrade = availableCash > 20;
+
+  if (shouldTriggerTrade) {
+    console.log(`   ✅ Available cash: $${availableCash.toFixed(2)} > $20 - Will trigger new trade`);
+  } else {
+    console.log(`   ⏸️ Available cash: $${availableCash.toFixed(2)} <= $20 - No new trade needed`);
+  }
+
+  return {
+    resolvedCount,
+    shouldTriggerTrade,
+    availableCash
+  };
 }
 
 function calculatePnL(trade: Trade, market: any): number {
