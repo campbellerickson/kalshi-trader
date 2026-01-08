@@ -1,4 +1,4 @@
-import { placeOrder, getOrderbook, waitForOrderFill } from './client';
+import { placeOrder, getOrderbook, waitForOrderFill, getMarket } from './client';
 import { AnalysisResponse, TradeResult } from '../../types';
 import { logTrade } from '../database/queries';
 import { calculateContractAmount } from '../utils/kelly';
@@ -8,19 +8,34 @@ export async function executeTrades(
   decisions: AnalysisResponse
 ): Promise<TradeResult[]> {
   console.log(`💰 Executing ${decisions.selectedContracts.length} trades...`);
-  
+
   const results: TradeResult[] = [];
 
   for (const decision of decisions.selectedContracts) {
     try {
       console.log(`   Executing: ${decision.contract.question.substring(0, 50)}...`);
       console.log(`   Allocation: $${decision.allocation}, Confidence: ${(decision.confidence * 100).toFixed(1)}%`);
-      console.log(`   Odds: Yes ${(decision.contract.yes_odds * 100).toFixed(1)}% | No ${((decision.contract.no_odds || (1 - decision.contract.yes_odds)) * 100).toFixed(1)}%`);
+      console.log(`   Cached odds: Yes ${(decision.contract.yes_odds * 100).toFixed(1)}% | No ${((decision.contract.no_odds || (1 - decision.contract.yes_odds)) * 100).toFixed(1)}%`);
 
-      // 1. Validate odds
+      // 1. Fetch LIVE odds from Kalshi (cached odds may be stale/invalid)
+      console.log(`   🔄 Fetching live odds from Kalshi...`);
+      let liveMarket;
+      try {
+        liveMarket = await getMarket(decision.contract.market_id);
+        console.log(`   ✅ Live odds: Yes ${(liveMarket.yes_odds * 100).toFixed(1)}% | No ${(liveMarket.no_odds * 100).toFixed(1)}%`);
+
+        // Update decision with live odds
+        decision.contract.yes_odds = liveMarket.yes_odds;
+        decision.contract.no_odds = liveMarket.no_odds;
+      } catch (error: any) {
+        console.error(`   ❌ Failed to fetch live odds: ${error.message}`);
+        throw new Error(`Cannot fetch live odds for ${decision.contract.market_id}`);
+      }
+
+      // 2. Validate odds
       const entryOdds = decision.contract.yes_odds;
       if (!entryOdds || entryOdds <= 0 || entryOdds > 1) {
-        throw new Error(`Invalid odds: ${entryOdds}`);
+        throw new Error(`Invalid odds after refresh: ${entryOdds}`);
       }
 
       // 2. Ensure contract is saved to database first
