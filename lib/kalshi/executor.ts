@@ -94,14 +94,13 @@ export async function executeTrades(
       console.log(`   Budget: $${decision.allocation.toFixed(2)}`);
       console.log(`   Orderbook: YES ask=${orderbook.bestYesAsk?.toFixed(3)}, NO ask=${orderbook.bestNoAsk?.toFixed(3)}`);
 
-      // 5. Execute market order with buy_max_cost
-      // This is the correct way per Kalshi API - it will buy as many contracts as possible
-      // up to the dollar limit, getting the best available prices
+      // 5. Execute order - pass price for contract calculation
       const order = await placeOrder({
         market: decision.contract.market_id,
         side,
-        amount: decision.allocation, // Dollar amount (not contract count)
-        type: 'market', // Market order with buy_max_cost
+        amount: decision.allocation, // Dollar amount
+        price: entryOdds, // Current odds for contract calculation
+        type: 'market',
       });
 
       // Get actual contracts purchased from filled order

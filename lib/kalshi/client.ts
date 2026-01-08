@@ -462,8 +462,6 @@ export async function placeOrder(order: {
     return { order_id: 'dry-run-order', status: 'resting' };
   }
 
-  const ordersApi = getOrdersApi();
-
   // Convert side to Kalshi format
   const side = order.side === 'YES' || order.side === 'SELL_YES' ? 'yes' : 'no';
   const action = order.side.startsWith('SELL') ? 'sell' : 'buy';
@@ -471,65 +469,53 @@ export async function placeOrder(order: {
   // Use market orders by default for immediate fills
   const orderType = order.type || 'market';
 
-  // OrdersApi.createOrder takes a CreateOrderRequest object
+  // Calculate number of contracts to buy based on dollar amount and odds
+  // For market orders, buy as many contracts as the budget allows
+  const contracts = Math.floor(order.amount / (order.price || 0.5)); // Estimate ~50 cents per contract if no price
+
+  // Build simple order request with only required fields
   const orderRequest: any = {
     ticker: order.market,
-    side: side as 'yes' | 'no',
-    action: action as 'buy' | 'sell',
-    type: orderType,
-    client_order_id: `order-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    side: side,
+    action: action,
+    count: contracts, // Number of contracts
   };
 
-  if (orderType === 'market') {
-    // MARKET ORDERS: Use buy_max_cost to control spending
-    // Set high count and let buy_max_cost limit actual spending
-    orderRequest.count = 10000; // High number to allow buying up to budget
-    orderRequest.buy_max_cost = Math.floor(order.amount * 100); // Dollar amount in cents
-    console.log(`   📤 Market order: max ${orderRequest.count} contracts, budget $${order.amount} (${orderRequest.buy_max_cost} cents)`);
-  } else {
-    // LIMIT ORDERS: Use exact price and count
-    if (!order.price) {
-      throw new Error('Limit orders require a price parameter');
-    }
-    const orderPrice = Math.max(1, Math.min(99, Math.floor(order.price * 100)));
-    orderRequest.count = Math.floor(order.amount); // Exact number of contracts
-
-    // Set price based on side
-    if (side === 'yes') {
-      orderRequest.yes_price = orderPrice;
-    } else {
-      orderRequest.no_price = orderPrice;
-    }
-    console.log(`   📤 Limit order: ${orderRequest.count} contracts at ${orderPrice} cents`);
-  }
+  console.log(`   📤 Order: ${contracts} ${side} contracts on ${order.market}`);
 
   try {
     console.log('   📤 Sending order request:', JSON.stringify(orderRequest, null, 2));
 
+    // Use SDK to place order
+    const ordersApi = getOrdersApi();
     const response = await ordersApi.createOrder(orderRequest);
 
     return (response.data as any).order || response.data;
   } catch (error: any) {
     console.error('   ❌ Order request failed:', JSON.stringify(orderRequest, null, 2));
-    console.error('   ❌ Error message:', error.message);
 
-    // Safely extract error details without circular references
-    const errorData = error.response?.data;
-    const statusCode = error.response?.status || 500;
+    // Extract error without triggering circular reference
+    const statusCode = error.response?.status || error.status || 500;
+    const statusText = error.response?.statusText || error.statusText || 'Unknown';
 
-    if (errorData) {
-      console.error('   ❌ Error data:', typeof errorData === 'object' ? JSON.stringify(errorData, null, 2) : errorData);
+    // Try to get error body safely
+    let errorBody = 'No error details';
+    try {
+      if (error.response?.data) {
+        errorBody = JSON.stringify(error.response.data);
+      } else if (error.data) {
+        errorBody = JSON.stringify(error.data);
+      } else if (error.message) {
+        errorBody = error.message;
+      }
+    } catch (jsonError) {
+      errorBody = String(error.response?.data || error.message || 'Unable to parse error');
     }
 
-    // Create clean error message
-    let errorMessage: string;
-    if (typeof errorData === 'object' && errorData !== null) {
-      errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
-    } else {
-      errorMessage = String(errorData || error.message || 'Unknown error');
-    }
+    console.error(`   ❌ Order failed: ${statusCode} ${statusText}`);
+    console.error(`   ❌ Error body: ${errorBody}`);
 
-    throw new Error(`Failed to place order: ${statusCode} ${errorMessage}`);
+    throw new Error(`Failed to place order: ${statusCode} ${statusText} - ${errorBody}`);
   }
 }
 
