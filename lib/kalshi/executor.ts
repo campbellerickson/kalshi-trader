@@ -7,11 +7,22 @@ import { TRADING_CONSTANTS } from '../../config/constants';
 export async function executeTrades(
   decisions: AnalysisResponse
 ): Promise<TradeResult[]> {
-  console.log(`💰 Executing ${decisions.selectedContracts.length} trades...`);
+  const isForcedTrade = decisions.forcedTrade === true;
+
+  if (isForcedTrade) {
+    console.log(`💰 Attempting forced trade (will stop after first success)...`);
+  } else {
+    console.log(`💰 Executing ${decisions.selectedContracts.length} trades...`);
+  }
 
   const results: TradeResult[] = [];
 
   for (const decision of decisions.selectedContracts) {
+    // If this is a forced trade and we already have a success, stop
+    if (isForcedTrade && results.some(r => r.success)) {
+      console.log(`   ✅ Forced trade succeeded, skipping remaining contracts`);
+      break;
+    }
     try {
       console.log(`   Executing: ${decision.contract.question.substring(0, 50)}...`);
       console.log(`   Allocation: $${decision.allocation}, Confidence: ${(decision.confidence * 100).toFixed(1)}%`);

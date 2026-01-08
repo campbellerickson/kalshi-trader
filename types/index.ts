@@ -58,6 +58,7 @@ export interface AnalysisResponse {
   }[];
   totalAllocated: number;
   strategyNotes: string;
+  forcedTrade?: boolean; // If true, stop after first successful trade
 }
 
 export interface TradeResult {

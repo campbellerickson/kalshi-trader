@@ -75,17 +75,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (successfulTradesToday.length === 0) {
         console.log(`⚠️ AI selected 0 contracts, but no SUCCESSFUL trades today (${todayTrades.length - successfulTradesToday.length} were cancelled). FORCING 1 TRADE PER DAY RULE...`);
 
-        // Force top 3 contracts as backup options (in case first ones fail)
+        // Force ONLY the top contract (with backups in case it fails)
+        // We'll try them one at a time until one succeeds
         const topContracts = contracts.slice(0, Math.min(3, contracts.length));
+
+        // Mark this as a forced trade scenario
         analysis.selectedContracts = topContracts.map(contract => ({
           contract,
-          allocation: TRADING_CONSTANTS.DAILY_BUDGET,
+          allocation: TRADING_CONSTANTS.DAILY_BUDGET, // Use full daily budget for the one trade
           confidence: 0.75,
           reasoning: 'FORCED: Minimum 1 successful trade per day requirement',
           riskFactors: ['Forced trade - must execute at least 1 trade per day'],
         }));
         analysis.totalAllocated = TRADING_CONSTANTS.DAILY_BUDGET;
-        console.log(`   Forced ${topContracts.length} contracts (will execute first successful one):`);
+        analysis.forcedTrade = true; // Flag to tell executor to stop after first success
+
+        console.log(`   Will attempt up to ${topContracts.length} contracts (stops after first success):`);
         topContracts.forEach((c, i) => console.log(`     ${i + 1}. ${c.question.substring(0, 60)}...`));
       } else {
         console.log(`✅ AI selected 0 contracts, but we had ${successfulTradesToday.length} successful trades today. Skipping.`);
