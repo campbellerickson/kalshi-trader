@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/sync-orders",
       "schedule": "0 10,16 * * *"
+    },
+    {
+      "path": "/api/cron/sync-outcomes",
+      "schedule": "0 3 * * *"
     }
   ],
   "framework": "nextjs",
