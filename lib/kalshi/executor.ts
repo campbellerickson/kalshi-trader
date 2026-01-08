@@ -1,4 +1,4 @@
-import { placeOrder, getOrderbook, waitForOrderFill, getMarket } from './client';
+import { placeOrder, getOrderbook, waitForOrderFill, getMarket, getAccountBalance } from './client';
 import { AnalysisResponse, TradeResult } from '../../types';
 import { logTrade } from '../database/queries';
 import { calculateContractAmount } from '../utils/kelly';
@@ -99,7 +99,16 @@ export async function executeTrades(
       console.log(`   Budget: $${decision.allocation.toFixed(2)}`);
       console.log(`   Orderbook: YES ask=${orderbook.bestYesAsk?.toFixed(3)}, NO ask=${orderbook.bestNoAsk?.toFixed(3)}`);
 
-      // 5. Execute order - pass price of the side we're buying for contract calculation
+      // 5. Check if we have sufficient cash BEFORE placing order
+      console.log(`   💵 Checking available cash...`);
+      const currentBalance = await getAccountBalance();
+      console.log(`   Current balance: $${currentBalance.toFixed(2)}`);
+
+      if (currentBalance < decision.allocation) {
+        throw new Error(`Insufficient funds: Need $${decision.allocation.toFixed(2)}, have $${currentBalance.toFixed(2)}`);
+      }
+
+      // 6. Execute order - pass price of the side we're buying for contract calculation
       const order = await placeOrder({
         market: decision.contract.market_id,
         side,
@@ -135,7 +144,7 @@ export async function executeTrades(
         }
       }
 
-      // 6. Log to database
+      // 7. Log to database
       const trade = await logTrade({
         contract_id: contractDbId,
         entry_odds: sidePrice, // Use the price of the side we bought
