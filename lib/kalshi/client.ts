@@ -476,6 +476,11 @@ export async function placeOrder(order: {
     // Calculate from dollar amount and price (for buys)
     const pricePerContract = order.price || 0.5;
     contracts = Math.floor(order.amount / pricePerContract);
+
+    // Validate: must be able to buy at least 1 contract
+    if (contracts < 1) {
+      throw new Error(`Allocation too small: $${order.amount.toFixed(2)} at ${(pricePerContract * 100).toFixed(1)}¢ = ${contracts} contracts (minimum 1 required)`);
+    }
   }
 
   const pricePerContract = order.price || 0.5;
