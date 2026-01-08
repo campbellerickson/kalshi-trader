@@ -94,20 +94,24 @@ export async function executeTrades(
       // 5. Determine which side to buy (always bet the high-probability side)
       // If yes_odds > 50%, buy YES. If yes_odds < 50% (no_odds > 50%), buy NO.
       const side = entryOdds > 0.5 ? 'YES' : 'NO';
+
+      // Use best ask price from orderbook for limit order
+      // This ensures we match with existing offers for immediate fill
       const price = side === 'YES'
         ? (orderbook.bestYesAsk || entryOdds)
         : (orderbook.bestNoAsk || (1 - entryOdds));
 
-      console.log(`   Betting ${side} at ~${(price * 100).toFixed(1)}% (fading ${side === 'YES' ? 'NO' : 'YES'} tail risk)`);
-      console.log(`   Using MARKET order for immediate fill`);
+      console.log(`   Betting ${side} at ${(price * 100).toFixed(1)}% (fading ${side === 'YES' ? 'NO' : 'YES'} tail risk)`);
+      console.log(`   Using LIMIT order at best ask price (acts like market order)`);
+      console.log(`   Orderbook: YES ask=${orderbook.bestYesAsk?.toFixed(3)}, NO ask=${orderbook.bestNoAsk?.toFixed(3)}`);
 
-      // 6. Execute market order (immediate fill at best available price)
+      // 6. Execute limit order at best ask price (immediate fill if liquidity exists)
       const order = await placeOrder({
         market: decision.contract.market_id,
         side,
         amount: contracts,
-        price, // Reference price for logging, not used in market orders
-        type: 'market', // Market order for immediate execution
+        price, // Limit price = best ask (should fill immediately if orderbook is correct)
+        type: 'limit', // Limit order for reliable fills
       });
 
       if (TRADING_CONSTANTS.DRY_RUN) {
@@ -115,14 +119,15 @@ export async function executeTrades(
       } else {
         console.log(`   ✅ Order placed: ${order.order_id || 'unknown'}`);
 
-        // Market orders should fill immediately, but check with short timeout
-        console.log(`   ⏳ Confirming fill...`);
+        // Limit orders at best ask should fill quickly if liquidity exists
+        console.log(`   ⏳ Waiting for order fill...`);
         try {
-          const filledOrder = await waitForOrderFill(order.order_id, 10000, 1000); // 10s timeout, 1s polling
-          console.log(`   ✅ Order filled immediately (market order)`);
+          const filledOrder = await waitForOrderFill(order.order_id, 30000, 2000); // 30s timeout, 2s polling
+          console.log(`   ✅ Order filled successfully`);
         } catch (fillError: any) {
-          console.error(`   ⚠️ Market order fill issue: ${fillError.message}`);
-          // Market orders should fill instantly, so this is unusual
+          console.error(`   ⚠️ Order did not fill within 30s: ${fillError.message}`);
+          console.error(`   ⚠️ Order may be resting in orderbook - will be tracked for later fill`);
+          // Don't fail the trade - order is placed and may fill later
         }
       }
 
