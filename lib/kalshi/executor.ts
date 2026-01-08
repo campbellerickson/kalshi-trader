@@ -91,17 +91,20 @@ export async function executeTrades(
       // If yes_odds = 30%, buy NO (fade YES tail risk at 30%, since NO is at 70%)
       const side = entryOdds > 0.5 ? 'YES' : 'NO';
 
-      console.log(`   Betting ${side} at ~${(entryOdds * 100).toFixed(1)}% (fading ${side === 'YES' ? 'NO' : 'YES'} tail risk)`);
+      // Get the price of the side we're actually buying
+      const sidePrice = side === 'YES' ? decision.contract.yes_odds : decision.contract.no_odds;
+
+      console.log(`   Betting ${side} at ~${(sidePrice * 100).toFixed(1)}% (fading ${side === 'YES' ? 'NO' : 'YES'} tail risk)`);
       console.log(`   Using market order (Kalshi will execute at best available price)`);
       console.log(`   Budget: $${decision.allocation.toFixed(2)}`);
       console.log(`   Orderbook: YES ask=${orderbook.bestYesAsk?.toFixed(3)}, NO ask=${orderbook.bestNoAsk?.toFixed(3)}`);
 
-      // 5. Execute order - pass price for contract calculation
+      // 5. Execute order - pass price of the side we're buying for contract calculation
       const order = await placeOrder({
         market: decision.contract.market_id,
         side,
         amount: decision.allocation, // Dollar amount
-        price: entryOdds, // Current odds for contract calculation
+        price: sidePrice, // Price of the side we're buying (for count calculation)
         type: 'market',
       });
 
@@ -111,7 +114,7 @@ export async function executeTrades(
       if (TRADING_CONSTANTS.DRY_RUN) {
         console.log('   🧪 DRY RUN: Trade simulated');
         // Estimate contracts for dry run
-        contractsPurchased = Math.floor(decision.allocation / entryOdds);
+        contractsPurchased = Math.floor(decision.allocation / sidePrice);
       } else {
         console.log(`   ✅ Order placed: ${order.order_id || 'unknown'}`);
 
@@ -128,14 +131,14 @@ export async function executeTrades(
           console.error(`   ⚠️ Order did not fill within 30s: ${fillError.message}`);
           console.error(`   ⚠️ Order may be resting in orderbook - will be tracked for later fill`);
           // Estimate contracts for now (will be updated by sync-orders cron)
-          contractsPurchased = Math.floor(decision.allocation / entryOdds);
+          contractsPurchased = Math.floor(decision.allocation / sidePrice);
         }
       }
 
       // 6. Log to database
       const trade = await logTrade({
         contract_id: contractDbId,
-        entry_odds: entryOdds,
+        entry_odds: sidePrice, // Use the price of the side we bought
         position_size: decision.allocation,
         side, // Use dynamic side (YES if >50%, NO if <50%)
         contracts_purchased: contractsPurchased,
