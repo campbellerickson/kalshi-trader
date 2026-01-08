@@ -522,7 +522,13 @@ export async function placeOrder(order: {
     }
 
     // Create clean error message
-    const errorMessage = errorData?.error || errorData?.message || error.message || 'Unknown error';
+    let errorMessage: string;
+    if (typeof errorData === 'object' && errorData !== null) {
+      errorMessage = errorData.error || errorData.message || JSON.stringify(errorData);
+    } else {
+      errorMessage = String(errorData || error.message || 'Unknown error');
+    }
+
     throw new Error(`Failed to place order: ${statusCode} ${errorMessage}`);
   }
 }
