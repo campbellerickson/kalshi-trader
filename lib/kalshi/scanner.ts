@@ -122,6 +122,13 @@ export async function scanContracts(
       continue;
     }
 
+    // EXCLUDE contracts with >98% odds (99/1 trades) - too expensive, minimal edge
+    const isTooHighYes = yesPricePercent > criteria.maxOdds * 100; // > 98%
+    const isTooHighNo = noPricePercent > criteria.maxOdds * 100; // > 98%
+    if (isTooHighYes || isTooHighNo) {
+      continue;
+    }
+
     // Filter by resolution date - ensure end_date exists and is a Date
     if (!market.end_date) {
       continue;
