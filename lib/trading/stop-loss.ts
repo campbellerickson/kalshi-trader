@@ -69,8 +69,10 @@ export async function monitorStopLosses(): Promise<StopLossResult> {
 
       const holdTimeHours = (Date.now() - new Date(trade.executed_at).getTime()) / (1000 * 60 * 60);
 
+      // Trigger if position has lost 20%+ of its value (works for both YES and NO)
+      const valueRatio = currentValue / trade.position_size;
       const shouldTrigger =
-        currentOdds < config.triggerThreshold &&
+        valueRatio < config.triggerThreshold && // Position lost 20%+ (default: 0.80)
         holdTimeHours >= config.minHoldTimeHours;
       
       const candidate: StopLossCandidate = {

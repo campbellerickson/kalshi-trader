@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getOrdersApi } from '../../../lib/kalshi/client';
+import { getOrdersApi, getMarket } from '../../../lib/kalshi/client';
 import { supabase } from '../../../lib/database/client';
 
 /**
@@ -15,11 +15,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   console.log('🔍 Checking order fills...');
 
   try {
-    // 1. Get all open trades from database
+    // 1. Get all open trades from database (only recent ones - last 7 days)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
     const { data: openTrades, error } = await supabase
       .from('trades')
-      .select('*')
+      .select('*, contract:contracts(*)')
       .eq('status', 'open')
+      .gte('executed_at', sevenDaysAgo.toISOString())
       .order('executed_at', { ascending: true });
 
     if (error) {
@@ -36,7 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    console.log(`Found ${openTrades.length} open trades to check`);
+    console.log(`Found ${openTrades.length} open trades to check (last 7 days)`);
 
     const ordersApi = getOrdersApi();
     const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
@@ -48,6 +51,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // 2. Check each trade's order status
     for (const trade of openTrades) {
       try {
+        // First, check if market has resolved (backup to check-resolutions)
+        const market = await getMarket(trade.contract.market_id);
+
+        if (market.resolved) {
+          console.log(`📊 Market resolved for trade ${trade.id}, marking as resolved`);
+          const won = market.outcome === trade.side;
+          const pnl = won
+            ? (trade.contracts_purchased * 1.0) - trade.position_size
+            : -trade.position_size;
+
+          await supabase
+            .from('trades')
+            .update({
+              status: won ? 'won' : 'lost',
+              exit_odds: market.final_odds || (trade.side === 'YES' ? market.yes_odds : market.no_odds),
+              pnl,
+              resolved_at: new Date().toISOString(),
+            })
+            .eq('id', trade.id);
+
+          filled++;
+          continue;
+        }
+
         // Get order from Kalshi (if we have an order ID)
         // Note: We'll need to add order_id to trades table
         const { data: allOrders } = await ordersApi.getOrders();
@@ -61,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         );
 
         if (!order) {
-          console.log(`⚠️ No order found for trade ${trade.id}`);
+          console.log(`⚠️ No order found for trade ${trade.id} (likely filled immediately)`);
           continue;
         }
 
