@@ -471,7 +471,8 @@ export async function placeOrder(order: {
   const pricePerContract = order.price || 0.5;
   const contracts = Math.floor(order.amount / pricePerContract);
 
-  // Build order request - send ONLY ticker, side, action, count (no price)
+  // Build order request with count and let Kalshi execute at market price
+  // Note: Kalshi REQUIRES a price field, so we pass current market price
   const orderRequest: any = {
     ticker: order.market,
     side: side,
@@ -479,7 +480,14 @@ export async function placeOrder(order: {
     count: contracts,
   };
 
-  console.log(`   📤 Order: ${contracts} ${side} contracts (${action}) on ${order.market}`);
+  // Kalshi requires exactly one price field - use the current market price for the side we're buying
+  if (side === 'yes') {
+    orderRequest.yes_price = Math.max(1, Math.min(99, Math.round(pricePerContract * 100)));
+  } else {
+    orderRequest.no_price = Math.max(1, Math.min(99, Math.round(pricePerContract * 100)));
+  }
+
+  console.log(`   📤 Order: ${contracts} ${side} contracts @ ${orderRequest[side === 'yes' ? 'yes_price' : 'no_price']}¢ on ${order.market}`);
 
   try {
     console.log('   📤 Sending order request:', JSON.stringify(orderRequest, null, 2));
