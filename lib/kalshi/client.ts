@@ -470,18 +470,28 @@ export async function placeOrder(order: {
   const orderType = order.type || 'market';
 
   // Calculate number of contracts to buy based on dollar amount and odds
-  // For market orders, buy as many contracts as the budget allows
-  const contracts = Math.floor(order.amount / (order.price || 0.5)); // Estimate ~50 cents per contract if no price
+  const pricePerContract = order.price || 0.5; // Use provided price or estimate 50 cents
+  const contracts = Math.floor(order.amount / pricePerContract);
 
-  // Build simple order request with only required fields
+  // Convert price to cents (Kalshi uses 1-99 cents)
+  const priceCents = Math.max(1, Math.min(99, Math.floor(pricePerContract * 100)));
+
+  // Build order request - Kalshi requires yes_price or no_price
   const orderRequest: any = {
     ticker: order.market,
     side: side,
     action: action,
-    count: contracts, // Number of contracts
+    count: contracts,
   };
 
-  console.log(`   📤 Order: ${contracts} ${side} contracts on ${order.market}`);
+  // Add price based on side (required by Kalshi)
+  if (side === 'yes') {
+    orderRequest.yes_price = priceCents;
+  } else {
+    orderRequest.no_price = priceCents;
+  }
+
+  console.log(`   📤 Order: ${contracts} ${side} contracts @ ${priceCents}¢ on ${order.market}`);
 
   try {
     console.log('   📤 Sending order request:', JSON.stringify(orderRequest, null, 2));
