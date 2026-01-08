@@ -18,7 +18,7 @@ export async function checkAndResolveOpenTrades(): Promise<{ resolvedCount: numb
 
       if (market.resolved && market.outcome) {
         const won = market.outcome === trade.side;
-        const pnl = calculatePnL(trade, market);
+        const pnl = calculatePnL(trade, won);
 
         // Update trade
         await updateTrade(trade.id, {
@@ -70,12 +70,13 @@ export async function checkAndResolveOpenTrades(): Promise<{ resolvedCount: numb
   };
 }
 
-function calculatePnL(trade: Trade, market: any): number {
-  if (trade.status === 'won') {
-    // If won, P&L = contracts * 1.0 - position_size
+function calculatePnL(trade: Trade, won: boolean): number {
+  if (won) {
+    // If won, P&L = contracts * $1.00 - position_size
+    // Each winning contract pays out $1.00
     return (trade.contracts_purchased * 1.0) - trade.position_size;
   } else {
-    // If lost, P&L = -position_size (total loss)
+    // If lost, P&L = -position_size (total loss, contracts worth $0)
     return -trade.position_size;
   }
 }
