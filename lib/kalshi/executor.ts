@@ -108,14 +108,48 @@ export async function executeTrades(
         throw new Error(`Insufficient funds: Need $${decision.allocation.toFixed(2)}, have $${currentBalance.toFixed(2)}`);
       }
 
-      // 6. Execute order - pass price of the side we're buying for contract calculation
-      const order = await placeOrder({
-        market: decision.contract.market_id,
-        side,
-        amount: decision.allocation, // Dollar amount
-        price: sidePrice, // Price of the side we're buying (for count calculation)
-        type: 'market',
-      });
+      // 6. Execute order with retry logic (3 attempts)
+      const MAX_RETRIES = 3;
+      let order: any = null;
+      let lastError: Error | null = null;
+
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          if (attempt > 1) {
+            const backoffMs = attempt * 1000; // 1s, 2s, 3s
+            console.log(`   ⏳ Retry attempt ${attempt}/${MAX_RETRIES} (waiting ${backoffMs}ms)...`);
+            await new Promise(resolve => setTimeout(resolve, backoffMs));
+          }
+
+          order = await placeOrder({
+            market: decision.contract.market_id,
+            side,
+            amount: decision.allocation, // Dollar amount
+            price: sidePrice, // Price of the side we're buying (for count calculation)
+            type: 'market',
+          });
+
+          // If we get here, order succeeded
+          console.log(`   ✅ Order placed: ${order.order_id || 'unknown'}`);
+          lastError = null;
+          break; // Success - exit retry loop
+
+        } catch (error: any) {
+          lastError = error;
+          console.error(`   ❌ Order attempt ${attempt}/${MAX_RETRIES} failed: ${error.message}`);
+
+          // If this was the last attempt, don't retry
+          if (attempt === MAX_RETRIES) {
+            console.error(`   ❌ All ${MAX_RETRIES} attempts failed - giving up on this market`);
+            throw error; // Re-throw to be caught by outer try/catch
+          }
+        }
+      }
+
+      // If we got here without an order, something went wrong
+      if (!order || lastError) {
+        throw lastError || new Error('Failed to place order after retries');
+      }
 
       // Get actual contracts purchased from filled order
       let contractsPurchased = 0;
@@ -125,8 +159,6 @@ export async function executeTrades(
         // Estimate contracts for dry run
         contractsPurchased = Math.floor(decision.allocation / sidePrice);
       } else {
-        console.log(`   ✅ Order placed: ${order.order_id || 'unknown'}`);
-
         // Market orders should fill quickly
         console.log(`   ⏳ Waiting for order fill...`);
         try {
