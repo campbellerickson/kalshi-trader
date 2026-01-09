@@ -88,33 +88,92 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      // 3. Get AI analysis (use available cash as budget)
-      const analysis = await analyzeContracts({
-        contracts,
-        historicalPerformance: [],
-        currentBankroll: await getCurrentBankroll(),
-        dailyBudget: result.availableCash, // Use available cash as budget
-      });
+      // 3. Execute trades with retry logic
+      let availableContracts = contracts;
+      let failedMarketIds: string[] = [];
+      let allTradeResults: any[] = [];
+      let remainingBudget = result.availableCash;
+      const MAX_RETRIES = 2;
 
-      console.log(`🤖 AI selected ${analysis.selectedContracts.length} contracts for reinvestment`);
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        console.log(`\n🎯 Trading attempt ${attempt + 1}/${MAX_RETRIES}`);
 
-      // 4. Execute trades if AI selected any
-      if (analysis.selectedContracts.length > 0) {
-        const tradeResults = await executeTrades(analysis);
-        console.log(`✅ Executed ${tradeResults.filter(r => r.success).length}/${tradeResults.length} reinvestment trades`);
-
-        return res.status(200).json({
-          success: true,
-          resolvedCount: result.resolvedCount,
-          availableCash: result.availableCash,
-          reinvestment: {
-            attempted: true,
-            executed: true,
-            tradesExecuted: tradeResults.filter(r => r.success).length,
-            totalAllocated: analysis.totalAllocated
-          }
+        // Get AI analysis (exclude previously failed markets)
+        const analysis = await analyzeContracts({
+          contracts: availableContracts,
+          historicalPerformance: [],
+          currentBankroll: await getCurrentBankroll(),
+          dailyBudget: remainingBudget,
         });
+
+        console.log(`🤖 AI selected ${analysis.selectedContracts.length} contracts`);
+
+        if (analysis.selectedContracts.length === 0) {
+          console.log(`⚠️ No contracts selected by AI`);
+          break;
+        }
+
+        // Execute trades
+        const tradeResults = await executeTrades(analysis);
+        allTradeResults.push(...tradeResults);
+
+        const successful = tradeResults.filter(r => r.success);
+        const failed = tradeResults.filter(r => !r.success);
+
+        console.log(`   ✅ ${successful.length} succeeded, ❌ ${failed.length} failed`);
+
+        // If all succeeded, we're done
+        if (failed.length === 0) {
+          console.log(`✅ All trades succeeded!`);
+          break;
+        }
+
+        // Track failed markets and calculate remaining budget
+        for (const result of failed) {
+          if (result.contract) {
+            failedMarketIds.push(result.contract.market_id);
+          }
+        }
+
+        // Calculate how much budget we still have (failed trades didn't spend)
+        const spentBudget = successful.reduce((sum, r) => sum + (r.trade?.position_size || 0), 0);
+        remainingBudget = result.availableCash - spentBudget;
+
+        console.log(`   💰 Remaining budget: $${remainingBudget.toFixed(2)}`);
+
+        // If no budget left or no more contracts, stop
+        if (remainingBudget < 5 || failed.length === 0) {
+          break;
+        }
+
+        // Exclude failed markets for next attempt
+        availableContracts = contracts.filter(c => !failedMarketIds.includes(c.market_id));
+        console.log(`   🔄 Retrying with ${availableContracts.length} remaining contracts (excluded ${failedMarketIds.length} failed markets)`);
+
+        if (availableContracts.length === 0) {
+          console.log(`⚠️ No more contracts to try`);
+          break;
+        }
       }
+
+      const successfulTrades = allTradeResults.filter(r => r.success).length;
+      const totalAllocated = allTradeResults
+        .filter(r => r.success)
+        .reduce((sum, r) => sum + (r.trade?.position_size || 0), 0);
+
+      return res.status(200).json({
+        success: true,
+        resolvedCount: result.resolvedCount,
+        availableCash: result.availableCash,
+        cancelledOrders: cancelledCount,
+        reinvestment: {
+          attempted: true,
+          executed: successfulTrades > 0,
+          tradesExecuted: successfulTrades,
+          totalAllocated: totalAllocated,
+          failedMarkets: failedMarketIds.length
+        }
+      });
     }
 
     return res.status(200).json({
