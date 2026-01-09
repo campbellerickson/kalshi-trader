@@ -14,6 +14,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (result.shouldTriggerTrade) {
       console.log('\n🎯 Triggering new trade with available cash...');
 
+      // Check live balance before doing expensive market scanning
+      const { getAccountBalance } = await import('../../../lib/kalshi/client');
+      const liveBalance = await getAccountBalance();
+      console.log(`💵 Live balance check: $${liveBalance.toFixed(2)}`);
+
+      if (liveBalance < 5) {
+        console.log(`⚠️ Insufficient funds for trading (need at least $5, have $${liveBalance.toFixed(2)})`);
+        console.log(`⏭️ Skipping market scan and trading`);
+        return res.status(200).json({
+          success: true,
+          resolvedCount: result.resolvedCount,
+          availableCash: liveBalance,
+          reinvestment: { attempted: false, reason: 'insufficient_funds' }
+        });
+      }
+
       const { scanContracts } = await import('../../../lib/kalshi/scanner');
       const { analyzeContracts } = await import('../../../lib/ai/analyzer');
       const { executeTrades } = await import('../../../lib/kalshi/executor');
