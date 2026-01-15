@@ -32,6 +32,22 @@ function isSimpleYesNoMarket(question: string): boolean {
   return true;
 }
 
+function isSportsMarket(question: string, category?: string): boolean {
+  const text = `${question} ${category || ''}`.toLowerCase();
+  const sportsKeywords = [
+    'sports', 'game', 'match', 'matchup', 'live', 'in-game', 'in game', 'inplay', 'in-play',
+    'point spread', 'spread', 'over/under', 'over under', 'total points', 'moneyline',
+    'run line', 'puck line', 'first half', 'second half', 'quarter', 'period', 'inning', 'overtime',
+    'touchdown', 'field goal', 'goal', 'assist', 'rebound', 'yard', 'rbi', 'home run',
+    'set', 'sets', 'map', 'knockout', 'tko',
+    'nfl', 'nba', 'mlb', 'nhl', 'ncaa', 'ncaab', 'ncaaf', 'mls', 'epl', 'uefa', 'fifa',
+    'world cup', 'atp', 'wta', 'pga', 'lpga', 'ufc', 'mma', 'boxing',
+    'f1', 'formula 1', 'nascar', 'indy', 'cricket', 'rugby',
+  ];
+
+  return sportsKeywords.some(keyword => text.includes(keyword));
+}
+
 /**
  * Filter-then-Fetch approach for efficient market scanning:
  * 1. Scan all markets and filter for high-conviction (yes price >85¢ or <15¢)
@@ -163,6 +179,11 @@ export async function scanContracts(
 
     // Exclude categories (if available in market data)
     if (market.category && criteria.excludeCategories?.includes(market.category)) {
+      continue;
+    }
+
+    // Exclude any sports markets (including live/in-progress)
+    if (isSportsMarket(market.question, market.category)) {
       continue;
     }
 

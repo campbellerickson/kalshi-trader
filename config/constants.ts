@@ -22,12 +22,27 @@ export const TRADING_CONSTANTS = {
   BANKROLL_DROP_THRESHOLD: 0.70, // 30% drop
   
   // Excluded categories and keywords for filtering
-  EXCLUDE_CATEGORIES: [],
+  EXCLUDE_CATEGORIES: [
+    'SPORTS',
+    'Sports',
+    'sports',
+    'Athletics',
+    'athletics',
+  ],
   EXCLUDE_KEYWORDS: [
-    'MATCH', // Sports matches
-    'NFL', 'NBA', 'MLB', 'NHL', 'NCAA', // Major leagues
-    'WTA', 'ATP', // Tennis
-    'TOUCHDOWN', 'SCORE', 'WIN', // Sports outcomes
+    // General sports terms
+    'SPORTS', 'SPORT', 'GAME', 'GAMES', 'MATCH', 'MATCHUP',
+    'LIVE', 'IN-GAME', 'IN GAME', 'INPLAY', 'IN-PLAY',
+    'POINT SPREAD', 'SPREAD', 'OVER/UNDER', 'OVER UNDER', 'TOTAL POINTS',
+    'MONEYLINE', 'RUN LINE', 'PUCK LINE',
+    'FIRST HALF', 'SECOND HALF', 'HALF', 'QUARTER', 'PERIOD', 'INNING', 'OVERTIME',
+    'TOUCHDOWN', 'FIELD GOAL', 'GOAL', 'SHOT', 'ASSIST', 'REBOUND', 'YARD', 'RBI', 'HOME RUN',
+    'SETS', 'SET', 'MAP', 'KNOCKOUT', 'TKO',
+    // Leagues/organizations
+    'NFL', 'NBA', 'MLB', 'NHL', 'NCAA', 'NCAAB', 'NCAAF',
+    'MLS', 'EPL', 'UCL', 'UEFA', 'FIFA', 'WC', 'WORLD CUP',
+    'ATP', 'WTA', 'PGA', 'LPGA', 'UFC', 'MMA', 'BOXING',
+    'F1', 'FORMULA 1', 'NASCAR', 'INDY', 'CRICKET', 'RUGBY',
   ],
 };
 
