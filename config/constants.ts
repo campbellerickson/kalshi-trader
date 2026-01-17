@@ -43,6 +43,8 @@ export const TRADING_CONSTANTS = {
     'MLS', 'EPL', 'UCL', 'UEFA', 'FIFA', 'WC', 'WORLD CUP',
     'ATP', 'WTA', 'PGA', 'LPGA', 'UFC', 'MMA', 'BOXING',
     'F1', 'FORMULA 1', 'NASCAR', 'INDY', 'CRICKET', 'RUGBY',
+    // Crypto
+    'BITCOIN', 'BTC',
   ],
 };
 

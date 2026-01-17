@@ -11,9 +11,11 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 export async function analyzeContracts(
   request: AnalysisRequest
 ): Promise<AnalysisResponse> {
-  console.log(`🤖 Analyzing ${request.contracts.length} contracts with AI (GPT-5.2 - superior reasoning & context)...`);
+  const screenedContracts = filterDisallowedMarkets(request.contracts);
 
-  if (request.contracts.length === 0) {
+  console.log(`🤖 Analyzing ${screenedContracts.length} contracts with AI (GPT-5.2 - superior reasoning & context)...`);
+
+  if (screenedContracts.length === 0) {
     return {
       selectedContracts: [],
       totalAllocated: 0,
@@ -25,7 +27,7 @@ export async function analyzeContracts(
   const historicalContext = await buildHistoricalContext();
 
   // Build prompt
-  const prompt = buildAnalysisPrompt(request, historicalContext);
+  const prompt = buildAnalysisPrompt({ ...request, contracts: screenedContracts }, historicalContext);
 
   // Call OpenAI API directly
   const response = await fetch(OPENAI_API_URL, {
@@ -62,15 +64,28 @@ export async function analyzeContracts(
     throw new Error(`Unexpected response format from Vercel AI Gateway: ${JSON.stringify(data).substring(0, 500)}`);
   }
 
-  const parsed = parseAIResponse(text, request.contracts, request.dailyBudget);
+  const parsed = parseAIResponse(text, screenedContracts, request.dailyBudget);
 
   console.log(`   ✅ AI selected ${parsed.selectedContracts.length} contracts`);
   console.log(`   💰 Total allocation: $${parsed.totalAllocated.toFixed(2)}`);
 
   // Log ALL AI decisions (selected + rejected) to database
-  await logAIDecisions(request.contracts, parsed, text);
+  await logAIDecisions(screenedContracts, parsed, text);
 
   return parsed;
+}
+
+function filterDisallowedMarkets(contracts: Contract[]): Contract[] {
+  const disallowedKeywords = [
+    'nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'ncaa',
+    'atp', 'wta',
+    'bitcoin', 'btc',
+  ];
+
+  return contracts.filter(contract => {
+    const text = `${contract.question} ${contract.category || ''}`.toLowerCase();
+    return !disallowedKeywords.some(keyword => text.includes(keyword));
+  });
 }
 
 function buildAnalysisPrompt(request: AnalysisRequest, historicalContext: string): string {
