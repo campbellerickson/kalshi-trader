@@ -48,6 +48,17 @@ function isSportsMarket(question: string, category?: string): boolean {
   return sportsKeywords.some(keyword => text.includes(keyword));
 }
 
+function isScalarOrPropMarket(question: string, marketId?: string): boolean {
+  const text = `${question} ${marketId || ''}`.toLowerCase();
+  const propKeywords = [
+    'prop', 'player', 'score', 'points', 'pts', 'assists', 'ast', 'rebounds', 'reb', 'steals', 'blocks',
+    'touchdown', 'td', 'yards', 'yds', 'goals', 'goal', 'shots', 'rebate', 'rbi', 'home run', 'strikeout',
+    'total', 'over/under', 'over under',
+  ];
+
+  return propKeywords.some(keyword => text.includes(keyword));
+}
+
 /**
  * Filter-then-Fetch approach for efficient market scanning:
  * 1. Scan all markets and filter for high-conviction (yes price >85¢ or <15¢)
@@ -197,6 +208,11 @@ export async function scanContracts(
 
     // Only include simple yes/no markets (exclude complex multi-question markets)
     if (!isSimpleYesNoMarket(market.question)) {
+      continue;
+    }
+
+    // Exclude scalar/prop markets
+    if (isScalarOrPropMarket(market.question, market.market_id)) {
       continue;
     }
 
