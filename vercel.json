@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/short-vol-agent",
-      "schedule": "0 * * * *"
+      "schedule": "*/10 * * * *"
     },
     {
       "path": "/api/cron/sync",
