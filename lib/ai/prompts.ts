@@ -94,13 +94,10 @@ ANALYSIS FRAMEWORK:
    CRITICAL: If a contract type consistently lost money, AVOID similar contracts.
    CRITICAL: If a contract type consistently won, FAVOR similar contracts.
 
-6. POSITION SIZING (CONSERVATIVE ALLOCATION)
-   Allocate based on RELATIVE quality - KEEP SIZES SMALL:
-   - Best opportunity: $30-50 (rarely use $50, prefer $30-40)
-   - Good opportunity: $25-35
-   - Acceptable opportunity: $20-25
-   - Default allocation: $25-30 per contract
-   - Maximum allowed: $50 (but avoid using max unless exceptional conviction)
+6. POSITION SIZING (PORTFOLIO-BASED)
+   Allocate based on portfolio size:
+   - Base allocation cap: 10% of total portfolio per position
+   - Exceptional opportunity (explicitly flagged): up to 30% of total portfolio
    - Prefer smaller, more distributed positions across multiple opportunities
    - Diversify across uncorrelated events when possible
 
@@ -109,10 +106,11 @@ RESPONSE FORMAT (JSON):
   "selected_contracts": [
     {
       "market_id": "string",
-      "allocation": number (20-50, based on quality ranking),
+      "allocation": number (portfolio-based cap: 10%, exceptional up to 30%),
       "confidence": 0-1,
       "reasoning": "RESEARCH-BASED reasoning: What did you research? What edge did you find? Exit timing? Why is this BETTER than other contracts?",
-      "risk_factors": ["specific risk 1", "specific risk 2"]
+      "risk_factors": ["specific risk 1", "specific risk 2"],
+      "exceptional": boolean
     }
   ],
   "total_allocated": number,

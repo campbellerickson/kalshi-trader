@@ -64,7 +64,12 @@ export async function analyzeContracts(
     throw new Error(`Unexpected response format from Vercel AI Gateway: ${JSON.stringify(data).substring(0, 500)}`);
   }
 
-  const parsed = parseAIResponse(text, screenedContracts, request.dailyBudget);
+  const parsed = parseAIResponse(
+    text,
+    screenedContracts,
+    request.dailyBudget,
+    request.currentBankroll
+  );
 
   console.log(`   ✅ AI selected ${parsed.selectedContracts.length} contracts`);
   console.log(`   💰 Total allocation: $${parsed.totalAllocated.toFixed(2)}`);
@@ -107,6 +112,11 @@ CURRENT SITUATION:
 HARD CONSTRAINT:
 - Do NOT select any contract tied to live or in-progress sports games. Do not bet on live sports.
 
+PORTFOLIO SIZING RULES:
+- Base allocation cap: 10% of total portfolio per position.
+- Exceptional opportunity (explicitly flagged by you): up to 30% of total portfolio.
+- You must mark exceptional opportunities with "exceptional": true in the JSON output.
+
 AVAILABLE CONTRACTS (Pre-filtered to 85-95% odds, good liquidity, <2 days to resolution):
 ${contractsList}
 
@@ -130,7 +140,8 @@ Return JSON in this format:
       "allocation": 35,
       "confidence": 0.92,
       "reasoning": "RESEARCH-BASED: [What you researched] [What edge you found] [Exit timing] [Why this is BETTER than other options]",
-      "risk_factors": ["Specific risk 1", "Specific risk 2"]
+      "risk_factors": ["Specific risk 1", "Specific risk 2"],
+      "exceptional": false
     }
   ],
   "rejected_contracts": [
@@ -146,11 +157,7 @@ Guidelines:
 - SELECT 1-3 of the BEST contracts presented (your job is to pick winners, not pass on everything)
 - RESEARCH each contract - understand the actual event, not just the numbers
 - Daily budget: $${request.dailyBudget} - use what makes sense, prefer smaller distributed positions
-- Position sizing: $20-50 per contract (KEEP SIZES SMALL - prefer $25-35)
-  * Best opportunity: $30-50 (rarely use $50, prefer $30-40)
-  * Good opportunity: $25-35
-  * Acceptable opportunity: $20-25
-  * Default: $25-30 per contract
+- Position sizing: cap each position at 10% of portfolio unless exceptional (then up to 30%)
 - COMPARE contracts - which have best combination of edge, timing, lower risk?
 - EXIT TIMING - consider opportunities to exit early if odds move 2-3% in our favor
 - Some risk is OK and expected - focus on finding the BEST risk/reward available
@@ -161,7 +168,12 @@ In general, avoid contracts that are live sports games. These odds swing massive
 `.trim();
 }
 
-function parseAIResponse(text: string, contracts: Contract[], dailyBudget: number): AnalysisResponse & { rejectedContracts?: any[], rawResponse?: any } {
+function parseAIResponse(
+  text: string,
+  contracts: Contract[],
+  dailyBudget: number,
+  currentBankroll: number
+): AnalysisResponse & { rejectedContracts?: any[], rawResponse?: any } {
   // Try to extract JSON from the response
   let jsonText = text;
 
@@ -176,15 +188,22 @@ function parseAIResponse(text: string, contracts: Contract[], dailyBudget: numbe
 
     // Map market_ids to contracts
     const selectedRaw: any[] = Array.isArray(parsed.selected_contracts) ? parsed.selected_contracts : [];
+    const baseMax = Math.max(0, currentBankroll * 0.1);
+    const exceptionalMax = Math.max(0, currentBankroll * 0.3);
+
     let selectedContracts = selectedRaw.map((sc: any) => {
       const contract = contracts.find(c => c.market_id === sc.market_id);
       if (!contract) {
         throw new Error(`Contract not found: ${sc.market_id}`);
       }
 
+      const isExceptional = Boolean(sc.exceptional);
+      const maxAllocation = isExceptional ? exceptionalMax : baseMax;
+      const requestedAllocation = Number(sc.allocation) || 0;
+
       return {
         contract,
-        allocation: Math.min(Math.max(sc.allocation, 20), 50), // Clamp between 20-50 (new active trading range)
+        allocation: Math.min(Math.max(requestedAllocation, 0), maxAllocation),
         confidence: Math.min(Math.max(sc.confidence, 0), 1), // Clamp between 0-1
         reasoning: sc.reasoning || 'No reasoning provided',
         riskFactors: sc.risk_factors || [],
